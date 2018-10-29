@@ -18,18 +18,26 @@ This repository is a dump of what is currently on my Sublime Text.
 
 *Non-Goals*
 ===========
-- Industrial-strength compiler for our Stage 1/State 2 compiler.
+- Industrial-strength compiler for our Stage 1/Stage 2 compiler.
 
 *TODO*
 =======
 - [ ] Stage 1 compiler: Compile *whack* code using using C++ code): (*Current progress*).
 - [ ] Stage 2 compiler: Use our Stage 1 compiler to compile the Whack compiler in *whack*.
-- [ ] Stage 3 compiler: Use our State 2 compiler to make a self-hosted Whack compiler.
-- [ ] Standard Library.
+- [ ] Stage 3 compiler: Use our Stage 2 compiler to make a self-hosted Whack compiler.
+- [ ] Standard Library & Proper documentation and tutorials.
 
-*Requirements*
+Requirements
+============
+
+*Development*
 ==============
 - Facebook.Folly (Release folly-2018.08.20.00).
 - spdlog (Release spdlog-1.1.0).
+- LLVM (Release 6.0.1).
+- *Running* requirements.
+
+*Running*
+=========
 - `gcc` must be available on your PATH (MinGW GCC is available at [Nuwen.net](http://nuwen.net)).
-- LLVM (Provided as a DLL in snapshot folder - check LLVM.dll.rar).
+- LLVM DLL (Provided in snapshot folder - extract LLVM.dll.rar).
