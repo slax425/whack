@@ -28,7 +28,7 @@ func closureExample1(bool p) auto {
 	return func(bool a) auto {
 		return func(int x) func(() -> bool) {
 			return func() bool {
-				return true;
+				return x < 10;
 			};
 		};
 	};
@@ -48,7 +48,7 @@ func closureExample2(int a, int b) auto {
 
 func testClosureExample2() {
 	if closureExample2(2, 1)() {
-		_ = puts("closureExample2: 2 > 1");
+		_ = puts("closureExample2: pass");
 	}
 }
 
@@ -58,8 +58,8 @@ func testDynamicMemoryAndClosures() {
 	let r = *mem;
 	r.msg = "Hello, World!";
 	t2->r.amazing();
-	_ = testClosureExample1();
-	_ = testClosureExample2();
+	testClosureExample1();
+	testClosureExample2();
 }
 
 func main(int argc, char** argv) int {
