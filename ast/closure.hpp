@@ -19,6 +19,7 @@
 #pragma once
 
 #include "args.hpp"
+#include "ast.hpp"
 #include "body.hpp"
 #include "metadata.hpp"
 #include "structure.hpp"
@@ -32,23 +33,43 @@ class Closure final : public Factor {
 public:
   explicit Closure(const mpc_ast_t* const ast)
       : Factor(kClosure), state_{ast->state} {
-    auto idx = 3;
+    auto idx = 2;
     if (std::string_view(ast->children[1]->contents) == "[") {
-      for (auto i = 2; i < ast->children_num; ++i) {
-        // @todo
+      for (idx = 2; idx < ast->children_num; idx += 2) {
+        const auto ref = ast->children[idx];
+        if (getOutermostAstTag(ref) != "capture") {
+          ++idx;
+          break;
+        }
+        if (ref->children_num) {
+          const auto name = ref->children[0]->contents;
+          const bool isRef =
+              std::string_view(ref->children[1]->contents) == "&";
+          explicitCaptures_[name] =
+              getExpressionValue(ref->children[isRef ? 0 : 2]);
+        } else {
+          if (std::string_view(ref->contents) == "&") { // "=" is the default
+            // @todo
+            llvm_unreachable(
+                format("capturing all closure variable(s) explicitly"
+                       " by reference is not implemented at line {}",
+                       ref->state.row + 1)
+                    .c_str());
+          } else {
+            explicitCaptures_[ref->contents] = getExpressionValue(ref);
+          }
+        }
       }
     }
-    if (getOutermostAstTag(ast->children[2]) == "args") {
-      args_ = std::make_unique<Args>(ast->children[2]);
+    if (getOutermostAstTag(ast->children[idx]) == "args") {
+      args_ = std::make_unique<Args>(ast->children[idx]);
       ++idx;
     }
-    if (ast->children_num > 4 &&
-        getOutermostAstTag(ast->children[idx]) == "typelist") {
+    if (getOutermostAstTag(ast->children[++idx]) == "typelist") {
       returns_ = std::make_unique<TypeList>(ast->children[idx]);
       ++idx;
     }
-    if (ast->children_num > 5 &&
-        getOutermostAstTag(ast->children[idx]) == "tags") {
+    if (getOutermostAstTag(ast->children[idx]) == "tags") {
       tags_ = std::make_unique<Tags>(ast->children[idx]);
       ++idx;
     }
@@ -58,43 +79,55 @@ public:
   llvm::Expected<llvm::Value*> codegen(llvm::IRBuilder<>& builder) const final {
     const auto enclosingFn = builder.GetInsertBlock()->getParent();
     const auto module = enclosingFn->getParent();
-    auto type = Type::getReturnType(
+    auto returnType = Type::getReturnType(
         module->getContext(),
         returns_ ? std::optional{returns_->codegen(module)} : std::nullopt,
         state_);
-    if (!type) {
-      return type.takeError();
+    if (!returnType) {
+      return returnType.takeError();
     }
-    const auto returnType = *type;
+
     small_vector<llvm::Type*> scopedTypes;
     small_vector<llvm::Value*> scopedValues;
     small_vector<llvm::StringRef> scopedNames;
 
-    // we inherit any captured variables if enclosing function is a closure
-    if (enclosingFn->getName().startswith("::closure")) {
-      const auto enclosingEnv =
-          llvm::cast<llvm::Value>(&enclosingFn->arg_begin()[0]);
-      const auto enclosingEnvType =
-          enclosingEnv->getType()->getPointerElementType();
-      scopedNames = getMetadataParts(*module, "structures",
-                                     enclosingEnvType->getStructName());
-      for (size_t i = 0; i < scopedNames.size(); ++i) {
-        const auto ptr =
-            builder.CreateStructGEP(enclosingEnvType, enclosingEnv, i, "");
-        const auto val = builder.CreateLoad(ptr);
+    if (!explicitCaptures_.empty()) {
+      for (const auto& capture : explicitCaptures_) {
+        scopedNames.push_back(capture.getKey());
+        auto val = capture.getValue()->codegen(builder);
+        if (!val) {
+          return val.takeError();
+        }
+        const auto value = *val;
+        scopedValues.push_back(value);
+        scopedTypes.push_back(value->getType());
+      }
+    } else {
+      // we inherit any captured variables if enclosing function is a closure
+      if (enclosingFn->getName().startswith("::closure")) {
+        const auto enclosingEnv =
+            llvm::cast<llvm::Value>(&enclosingFn->arg_begin()[0]);
+        const auto enclosingEnvType =
+            enclosingEnv->getType()->getPointerElementType();
+        scopedNames = getMetadataParts(*module, "structures",
+                                       enclosingEnvType->getStructName());
+        for (size_t i = 0; i < scopedNames.size(); ++i) {
+          const auto ptr =
+              builder.CreateStructGEP(enclosingEnvType, enclosingEnv, i, "");
+          const auto val = builder.CreateLoad(ptr);
+          scopedValues.push_back(val);
+          scopedTypes.push_back(val->getType());
+        }
+      }
+      for (const auto& symbol : *enclosingFn->getValueSymbolTable()) {
+        const auto val = symbol.getValue();
+        if (!val->getType()->isSized() || val->getName().find('.')) {
+          continue;
+        }
         scopedValues.push_back(val);
         scopedTypes.push_back(val->getType());
+        scopedNames.push_back(val->getName());
       }
-    }
-
-    for (const auto& symbol : *enclosingFn->getValueSymbolTable()) {
-      const auto val = symbol.getValue();
-      if (!val->getType()->isSized() || val->getName().find('.')) {
-        continue;
-      }
-      scopedValues.push_back(val);
-      scopedTypes.push_back(val->getType());
-      scopedNames.push_back(val->getName());
     }
 
     const auto env = llvm::StructType::create(module->getContext());
@@ -107,7 +140,7 @@ public:
     }
 
     auto func = llvm::Function::Create(
-        llvm::FunctionType::get(returnType, argTypes,
+        llvm::FunctionType::get(*returnType, argTypes,
                                 args_ ? args_->variadic() : false),
         llvm::Function::ExternalLinkage, "::closure", module);
     func->arg_begin()[0].setName(".env");
@@ -160,11 +193,9 @@ public:
       }
     }
 
-    // @todo: capture appropriate variables if defined explicitly
     const auto scopeVars = builder.CreateAlloca(env, 0, nullptr, "");
     for (size_t i = 0; i < scopedValues.size(); ++i) {
       const auto ptr = builder.CreateStructGEP(env, scopeVars, i, "");
-      // we create copies as a default: @todo
       builder.CreateStore(scopedValues[i], ptr);
     }
 
@@ -177,7 +208,7 @@ public:
 private:
   const mpc_state_t state_;
   std::unique_ptr<Args> args_;
-  llvm::StringMap<std::unique_ptr<Factor>> captures_;
+  llvm::StringMap<expr_t> explicitCaptures_;
   std::unique_ptr<TypeList> returns_;
   std::unique_ptr<Tags> tags_;
   std::unique_ptr<Body> body_;
