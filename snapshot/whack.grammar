@@ -36,7 +36,8 @@ funccall : ("await" | "async")? <callable> ("->" <callable>)* ('(' <exprlist>? '
 
 capture : <ident> ('&' | ('=' <expression>))? ;
 
-closure : "func" ('[' (<capture> (',' <capture>)*)? ']')? '(' <args>? ')' <typelist>? <tags>? <body> ;
+closure : "func" ('[' ('&' | '=' | (<capture> (',' <capture>)*))? ']')?
+              '(' <args>? ')' <typelist>? <tags>? <body> ;
 
 initlist : '{' <exprlist> ? '}' ;
 
