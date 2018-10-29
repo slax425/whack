@@ -37,6 +37,7 @@
 #include "nullptr.hpp"
 #include "postop.hpp"
 #include "preop.hpp"
+#include "reference.hpp"
 #include "scoperes.hpp"
 #include "string.hpp"
 #include "structmember.hpp"
@@ -67,6 +68,7 @@ static std::unique_ptr<Factor> getFactor(const mpc_ast_t* const ast) {
   OPT("newexpr", NewExpr)
   OPT("scoperes", ScopeRes)
   OPT("listcomprehension", ListComprehension)
+  OPT("reference", Reference)
 #undef OPT
   if (tag == "ident") {
     if (std::string_view(ast->contents) == "nullptr") {
