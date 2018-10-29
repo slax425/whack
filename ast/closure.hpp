@@ -48,13 +48,16 @@ public:
           explicitCaptures_[name] =
               getExpressionValue(ref->children[isRef ? 0 : 2]);
         } else {
-          if (std::string_view(ref->contents) == "&") { // "=" is the default
-            // @todo
-            llvm_unreachable(
-                format("capturing all closure variable(s) explicitly"
-                       " by reference is not implemented at line {}",
-                       ref->state.row + 1)
-                    .c_str());
+          const std::string_view view{ref->contents};
+          if (view == "=") { // "=" is the default
+            // exit early
+            ++idx;
+            break;
+          } else if (view == "&") {
+            defaultCaptureByValue_ = false;
+            // exit early
+            ++idx;
+            break;
           } else {
             explicitCaptures_[ref->contents] = getExpressionValue(ref);
           }
@@ -103,6 +106,12 @@ public:
         scopedTypes.push_back(value->getType());
       }
     } else {
+      if (!defaultCaptureByValue_) {
+        llvm_unreachable(format("capturing all closure variable(s) explicitly"
+                                " by reference is not implemented at line {}",
+                                ref->state.row + 1)
+                             .c_str());
+      }
       // we inherit any captured variables if enclosing function is a closure
       if (enclosingFn->getName().startswith("::closure")) {
         const auto enclosingEnv =
@@ -121,7 +130,8 @@ public:
       }
       for (const auto& symbol : *enclosingFn->getValueSymbolTable()) {
         const auto val = symbol.getValue();
-        if (!val->getType()->isSized() || val->getName().find('.')) {
+        if (!val->getType()->isSized() ||
+            val->getName().find('.') != llvm::StringRef::npos) {
           continue;
         }
         scopedValues.push_back(val);
@@ -173,6 +183,18 @@ public:
     if (auto err = body_->codegen(tmpBuilder)) {
       return err;
     }
+
+    if (func->back().empty() ||
+        !llvm::isa<llvm::ReturnInst>(func->back().back())) {
+      if (func->getReturnType() != BasicTypes["void"]) {
+        return error("expected closure to have a return "
+                     "value at line {}",
+                     state_.row + 1);
+      } else {
+        tmpBuilder.CreateRetVoid();
+      }
+    }
+
     if (auto err = body_->runScopeExit(tmpBuilder)) {
       return err;
     }
@@ -209,6 +231,7 @@ private:
   const mpc_state_t state_;
   std::unique_ptr<Args> args_;
   llvm::StringMap<expr_t> explicitCaptures_;
+  bool defaultCaptureByValue_{true};
   std::unique_ptr<TypeList> returns_;
   std::unique_ptr<Tags> tags_;
   std::unique_ptr<Body> body_;
