@@ -31,9 +31,12 @@ public:
     return llvm::Error::success();
   }
 
-  inline llvm::Error runScopeExit(llvm::IRBuilder<>& builder) const final {
+  llvm::Error runScopeExit(llvm::IRBuilder<>& builder) const final {
     builder.SetInsertPoint(&builder.GetInsertBlock()->back()); // @todo
-    return stmt_->codegen(builder);
+    if (auto err = stmt_->codegen(builder)) {
+      return err;
+    }
+    return stmt_->runScopeExit(builder);
   }
 
   inline static bool classof(const Stmt* const stmt) {
