@@ -32,4 +32,4 @@ This repository is a dump of what is currently on my Sublime Text.
 - Facebook.Folly (Release folly-2018.08.20.00).
 - spdlog (Release spdlog-1.1.0).
 - `gcc` must be available on your PATH (MinGW GCC is available at [Nuwen.net](http://nuwen.net)).
-- LLVM (To be provided as a DLL in snapshot folder). For now, download/compile LLVM 6.0.1 DLL.
+- LLVM (Provided as a DLL in snapshot folder - check LLVM.dll.rar).

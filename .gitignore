@@ -2,7 +2,6 @@ build/**
 #TODO.md
 pass/dtor.hpp
 pass/alloca.hpp
-snapshot/LLVM.dll
 #keywords.txt
 #reserved.def
 #parserlist.def
