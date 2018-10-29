@@ -1,11 +1,15 @@
 **TODO**
 ========
 - [ ] Fix support for dynamic arrays (also `append` "intrinsic" function)
-- [ ] Support explicit closure variable capture/init (codegen)
+- [x] Support explicit closure variable capture/init (codegen)
+- [ ] Revisit Reference semantics
+- [ ] Do basic lifetime checks to avoid dangling pointers/invalid references
+- [ ] Closure capture nothing ([]) or everything by value (default) [=] / by reference [&] -> (codegen)
 - [ ] Fix boolean expressions (mainly a grammar issue)
 - [ ] Support implicit type conversions for structs via operator overloads
 - [ ] Support binary, octal & hexadecimal numbers
 - [x] Support explicit partial function application
+- [ ] Support partial function application for up to N - 1 of N args
 - [ ] Constistent Name Mangling (currently ad-hoc) -> support `export` construct
 - [ ] Distinguish pre/post increment/decrement operator functions (via mangled names?)
 - [ ] Interfaces, inheritance
