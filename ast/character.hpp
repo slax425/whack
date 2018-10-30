@@ -26,7 +26,8 @@ namespace whack::ast {
 class Character final : public Factor {
 public:
   explicit constexpr Character(const mpc_ast_t* const ast)
-      : character_{ast->contents[1]} {} // @todo: Espaced stuff
+      : Factor(kCharacter), character_{ast->contents[1]} {
+  } // @todo: Espaced stuff
 
   inline static auto get(const char character,
                          llvm::Type* const type = BasicTypes["char"]) {
@@ -37,6 +38,10 @@ public:
   inline llvm::Expected<llvm::Value*> codegen(llvm::IRBuilder<>&) const final {
     return llvm::ConstantInt::get(BasicTypes["char"],
                                   static_cast<uint64_t>(character_)); // @todo
+  }
+
+  inline static bool classof(const Factor* const factor) {
+    return factor->getKind() == kCharacter;
   }
 
 private:

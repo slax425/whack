@@ -27,7 +27,8 @@ namespace whack::ast {
 class FuncCall final : public Factor {
 public:
   explicit constexpr FuncCall(const mpc_ast_t* const ast)
-      : await_{std::string_view(ast->children[0]->contents) == "await"},
+      : Factor(kFuncCall), await_{std::string_view(
+                                      ast->children[0]->contents) == "await"},
         async_{!await_ &&
                std::string_view(ast->children[0]->contents) == "async"},
         ast_{ast} {}
@@ -49,6 +50,10 @@ public:
       llvm_unreachable("cross-module func calls not implemented");
     }
     return this->call(builder);
+  }
+
+  inline static bool classof(const Factor* const factor) {
+    return factor->getKind() == kFuncCall;
   }
 
 private:

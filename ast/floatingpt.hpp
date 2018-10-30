@@ -25,7 +25,7 @@ namespace whack::ast {
 class FloatingPt final : public Factor {
 public:
   explicit FloatingPt(const mpc_ast_t* const ast)
-      : floatingpt_{ast->contents} {}
+      : Factor(kFloatingPt), floatingpt_{ast->contents} {}
 
   llvm::Expected<llvm::Value*> codegen(llvm::IRBuilder<>&) const final {
     if (floatingpt_.back() == 'f') { // @todo: Refactor
@@ -33,6 +33,10 @@ public:
           BasicTypes["float"], floatingpt_.substr(0, floatingpt_.size() - 2));
     }
     return llvm::ConstantFP::get(BasicTypes["double"], floatingpt_);
+  }
+
+  inline static bool classof(const Factor* const factor) {
+    return factor->getKind() == kFloatingPt;
   }
 
 private:

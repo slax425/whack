@@ -24,7 +24,8 @@ namespace whack::ast {
 
 class Element final : public Factor {
 public:
-  explicit constexpr Element(const mpc_ast_t* const ast) noexcept : ast_{ast} {}
+  explicit constexpr Element(const mpc_ast_t* const ast) noexcept
+      : Factor(kElement), ast_{ast} {}
 
   llvm::Expected<llvm::Value*> codegen(llvm::IRBuilder<>& builder) const final {
     auto e = getFactor(ast_->children[0])->codegen(builder);
@@ -51,6 +52,10 @@ public:
       }
     }
     return extracted;
+  }
+
+  inline static bool classof(const Factor* const factor) {
+    return factor->getKind() == kElement;
   }
 
 private:

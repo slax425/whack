@@ -25,12 +25,17 @@ namespace whack::ast {
 
 class FnAlignOf final : public Factor {
 public:
-  explicit FnAlignOf(const mpc_ast_t* const ast) : type_{ast->children[2]} {}
+  explicit FnAlignOf(const mpc_ast_t* const ast)
+      : Factor(kFnAlignOf), type_{ast->children[2]} {}
 
   inline llvm::Expected<llvm::Value*>
   codegen(llvm::IRBuilder<>& builder) const final {
     return llvm::ConstantExpr::getAlignOf(
         type_.codegen(builder.GetInsertBlock()->getModule()));
+  }
+
+  inline static bool classof(const Factor* const factor) {
+    return factor->getKind() == kFnAlignOf;
   }
 
 private:

@@ -27,7 +27,7 @@ namespace whack::ast {
 class ListComprehension final : public Factor {
 public:
   explicit ListComprehension(const mpc_ast_t* const ast)
-      : identList_{getIdentList(ast->children[1])} {
+      : Factor(kListComprehension), identList_{getIdentList(ast->children[1])} {
     for (auto i = 2; i < ast->children_num - 1; i += 2) {
       expr_.emplace_back(ForInExpr{ast->children[i]});
     }
@@ -118,6 +118,10 @@ public:
       return error("invalid type provided at line {}", state.row + 1);
     }
     return value.takeError();
+  }
+
+  inline static bool classof(const Factor* const factor) {
+    return factor->getKind() == kListComprehension;
   }
 
 private:

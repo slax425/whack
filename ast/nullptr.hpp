@@ -24,7 +24,8 @@ namespace whack::ast {
 
 class NullPtr final : public Factor {
 public:
-  constexpr NullPtr(const mpc_ast_t* const = nullptr) noexcept {}
+  constexpr NullPtr(const mpc_ast_t* const = nullptr) noexcept
+      : Factor(kNullPtr) {}
 
   inline static llvm::Value*
   get(const llvm::Type* const type = BasicTypes["char"]) {
@@ -33,6 +34,10 @@ public:
 
   inline llvm::Expected<llvm::Value*> codegen(llvm::IRBuilder<>&) const final {
     return get();
+  }
+
+  inline static bool classof(const Factor* const factor) {
+    return factor->getKind() == kNullPtr;
   }
 };
 

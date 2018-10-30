@@ -26,7 +26,8 @@ namespace whack::ast {
 class FnSizeOf final : public Factor {
 public:
   explicit FnSizeOf(const mpc_ast_t* const ast)
-      : variadic_{getInnermostAstTag(ast->children[1]) == "expansion"},
+      : Factor(kFnSizeOf), variadic_{getInnermostAstTag(ast->children[1]) ==
+                                     "expansion"},
         expr_{getExpressionValue(ast->children[variadic_ ? 3 : 2])} {}
 
   llvm::Expected<llvm::Value*> codegen(llvm::IRBuilder<>& builder) const final {
@@ -43,6 +44,10 @@ public:
         // @todo: Check if we have a type name
       }
     }
+  }
+
+  inline static bool classof(const Factor* const factor) {
+    return factor->getKind() == kFnSizeOf;
   }
 
 private:

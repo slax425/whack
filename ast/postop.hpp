@@ -25,7 +25,7 @@ namespace whack::ast {
 class PostOp final : public Factor {
 public:
   explicit PostOp(const mpc_ast_t* const ast)
-      : state_{ast->state}, val_{getFactor(ast->children[1])},
+      : Factor(kPostOp), state_{ast->state}, val_{getFactor(ast->children[1])},
         op_{ast->children[0]->contents} {}
 
   llvm::Expected<llvm::Value*> codegen(llvm::IRBuilder<>& builder) const final {
@@ -73,6 +73,10 @@ public:
     }
     return error("invalid type for operator {} at line {}", op_,
                  state_.row + 1);
+  }
+
+  inline static bool classof(const Factor* const factor) {
+    return factor->getKind() == kPostOp;
   }
 
 private:

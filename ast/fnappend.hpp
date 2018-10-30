@@ -24,10 +24,14 @@ namespace whack::ast {
 
 class FnAppend final : public Factor {
 public:
-  explicit FnAppend(const mpc_ast_t* const ast) {}
+  explicit FnAppend(const mpc_ast_t* const ast) : Factor(kFnAppend) {}
 
   llvm::Expected<llvm::Value*> codegen(llvm::IRBuilder<>& builder) const final {
     llvm_unreachable("not implemented");
+  }
+
+  inline static bool classof(const Factor* const factor) {
+    return factor->getKind() == kFnAppend;
   }
 };
 

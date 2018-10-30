@@ -53,6 +53,10 @@ public:
     return builder.CreateLoad(*ptr);
   }
 
+  inline static bool classof(const Factor* const factor) {
+    return factor->getKind() == kDeref;
+  }
+
 private:
   const mpc_state_t state_;
   const int numLoads_;

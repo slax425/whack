@@ -27,7 +27,7 @@ namespace whack::ast {
 class StructMember final : public Factor {
 public:
   explicit constexpr StructMember(const mpc_ast_t* const ast) noexcept
-      : ast_{ast} {}
+      : Factor(kStructMember), ast_{ast} {}
 
   llvm::Expected<llvm::Value*> codegen(llvm::IRBuilder<>& builder) const final {
     const auto func = builder.GetInsertBlock()->getParent();
@@ -80,6 +80,10 @@ public:
                                                  llvm::StringRef structName,
                                                  llvm::StringRef memberName) {
     return getMetadataPartIndex(module, "structures", structName, memberName);
+  }
+
+  inline static bool classof(const Factor* const factor) {
+    return factor->getKind() == kStructMember;
   }
 
 private:

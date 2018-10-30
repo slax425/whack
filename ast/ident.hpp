@@ -30,7 +30,7 @@ namespace whack::ast {
 class Ident final : public Factor {
 public:
   explicit Ident(const mpc_ast_t* const ast)
-      : state_{ast->state}, name_{ast->contents} {}
+      : Factor(kIdent), state_{ast->state}, name_{ast->contents} {}
 
   llvm::Expected<llvm::Value*> codegen(llvm::IRBuilder<>& builder) const final {
     const auto func = builder.GetInsertBlock()->getParent();
@@ -123,6 +123,10 @@ public:
                    name, line);
     }
     return llvm::Error::success();
+  }
+
+  inline static bool classof(const Factor* const factor) {
+    return factor->getKind() == kIdent;
   }
 
 private:

@@ -22,17 +22,38 @@
 
 namespace whack::ast {
 
-class Receive final : public Stmt {
+class Receive final : public Factor {
 public:
-  explicit Receive(const mpc_ast_t* const ast) : Stmt(kReceive) {}
+  explicit Receive(const mpc_ast_t* const ast) : Factor(kReceive) {}
+
+  llvm::Expected<llvm::Value*> codegen(llvm::IRBuilder<>&) const final {
+    return error("not implemented");
+  }
+
+  inline static bool classof(const Factor* const factor) {
+    return factor->getKind() == kReceive;
+  }
+};
+
+class ReceiveStmt final : public Stmt {
+public:
+  explicit ReceiveStmt(const mpc_ast_t* const ast)
+      : Stmt(kReceive), impl_{ast} {}
 
   llvm::Error codegen(llvm::IRBuilder<>& builder) const final {
+    auto val = impl_.codegen(builder);
+    if (!val) {
+      return val.takeError();
+    }
     return llvm::Error::success();
   }
 
   inline static bool classof(const Stmt* const stmt) {
     return stmt->getKind() == kReceive;
   }
+
+private:
+  Receive impl_;
 };
 
 } // end namespace whack::ast

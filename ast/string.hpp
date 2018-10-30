@@ -24,11 +24,16 @@ namespace whack::ast {
 
 class String final : public Factor {
 public:
-  explicit String(const mpc_ast_t* const ast) : string_{ast->contents} {}
+  explicit String(const mpc_ast_t* const ast)
+      : Factor(kString), string_{ast->contents} {}
 
   inline llvm::Expected<llvm::Value*>
   codegen(llvm::IRBuilder<>& builder) const final {
     return builder.CreateGlobalStringPtr(string_.substr(1, string_.size() - 2));
+  }
+
+  inline static bool classof(const Factor* const factor) {
+    return factor->getKind() == kString;
   }
 
 private:

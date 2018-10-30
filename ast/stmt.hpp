@@ -84,7 +84,7 @@ static std::unique_ptr<Stmt> getStmt(const mpc_ast_t* const ast) {
   OPT("structure", StructureStmt)
   OPT("enumeration", EnumerationStmt)
   OPT("send", Send)
-  OPT("receive", Receive)
+  OPT("receive", ReceiveStmt)
   OPT("instream", InStream)
   OPT("outstream", OutStream)
   OPT("deferstmt", Defer)

@@ -27,7 +27,8 @@ namespace whack::ast {
 class Value final : public Factor {
 public:
   explicit Value(const mpc_ast_t* const ast)
-      : state_{ast->state}, type_{ast->children[0]}, init_{ast->children[1]} {}
+      : Factor(kValue), state_{ast->state}, type_{ast->children[0]},
+        init_{ast->children[1]} {}
 
   llvm::Expected<llvm::Value*> codegen(llvm::IRBuilder<>& builder) const final {
     const auto module = builder.GetInsertBlock()->getModule();
@@ -41,6 +42,10 @@ public:
     default: // <memberinitlist>
       return std::get<MemberInitList>(init).codegen(builder, type, state_);
     }
+  }
+
+  inline static bool classof(const Factor* const factor) {
+    return factor->getKind() == kValue;
   }
 
 private:

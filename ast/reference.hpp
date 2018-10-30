@@ -32,6 +32,10 @@ public:
     return error("References not implemented at line {}", state_.row + 1);
   }
 
+  inline static bool classof(const Factor* const factor) {
+    return factor->getKind() == kReference;
+  }
+
 private:
   const mpc_state_t state_;
   std::unique_ptr<Factor> variable_;

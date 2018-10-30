@@ -25,7 +25,8 @@ namespace whack::ast {
 class Integral final : public Factor {
 public:
   explicit Integral(const mpc_ast_t* const ast)
-      : integral_{static_cast<std::int64_t>(std::atoi(ast->contents))} {}
+      : Factor(kIntegral), integral_{static_cast<std::int64_t>(
+                               std::atoi(ast->contents))} {}
 
   inline static llvm::Value* zero(llvm::Type* const type = BasicTypes["int"]) {
     return get(0, type);
@@ -46,6 +47,10 @@ public:
   }
 
   inline const auto value() const noexcept { return integral_; }
+
+  inline static bool classof(const Factor* const factor) {
+    return factor->getKind() == kIntegral;
+  }
 
 private:
   const std::int64_t integral_;

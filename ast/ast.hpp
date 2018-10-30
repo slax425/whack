@@ -112,7 +112,7 @@ public:
     kPreOp,
     kPostOp,
     kValue,
-    kInitializer,
+    kInitializer, //
     kCharacter,
     kFloatingPt,
     kIntegral,
@@ -123,15 +123,17 @@ public:
     kScopeRes,
     kReference,
     kDeref,
-    kRange
+    kRange,
+    kListComprehension,
+    kNullPtr, //
+    kIdent
   };
 
 private:
   const Kind kind_;
 
 public:
-  inline explicit constexpr Factor(const Kind kind = kExpression) noexcept
-      : kind_{kind} {}
+  inline explicit constexpr Factor(const Kind kind) noexcept : kind_{kind} {}
 
   Factor(Factor&&) = default;
   Factor(const Factor&) = delete;

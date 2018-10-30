@@ -25,7 +25,7 @@ namespace whack::ast {
 class FnLen final : public Factor {
 public:
   explicit FnLen(const mpc_ast_t* const ast)
-      : expr_{getExpressionValue(ast->children[2])} {}
+      : Factor(kFnLen), expr_{getExpressionValue(ast->children[2])} {}
 
   llvm::Expected<llvm::Value*> codegen(llvm::IRBuilder<>& builder) const final {
     auto e = expr_->codegen(builder);
@@ -38,6 +38,10 @@ public:
       // @todo
     }
     return Integral::one(); // @todo
+  }
+
+  inline static bool classof(const Factor* const factor) {
+    return factor->getKind() == kFnLen;
   }
 
 private:

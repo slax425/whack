@@ -25,7 +25,7 @@ namespace whack::ast {
 class ScopeRes final : public Factor {
 public:
   explicit constexpr ScopeRes(const mpc_ast_t* const ast) noexcept
-      : ast_{ast} {}
+      : Factor(kScopeRes), ast_{ast} {}
 
   llvm::Expected<llvm::Value*> codegen(llvm::IRBuilder<>& builder) const final {
     const auto module = builder.GetInsertBlock()->getModule();
@@ -38,6 +38,10 @@ public:
       }
     }
     llvm_unreachable("not implemented");
+  }
+
+  inline static bool classof(const Factor* const factor) {
+    return factor->getKind() == kScopeRes;
   }
 
 private:

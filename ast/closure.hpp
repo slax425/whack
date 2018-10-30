@@ -227,6 +227,10 @@ public:
     return bindFirstFuncArgument(builder, func, scopeVars, closureType);
   }
 
+  inline static bool classof(const Factor* const factor) {
+    return factor->getKind() == kClosure;
+  }
+
 private:
   const mpc_state_t state_;
   std::unique_ptr<Args> args_;

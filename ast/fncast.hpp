@@ -26,8 +26,8 @@ namespace whack::ast {
 class FnCast final : public Factor {
 public:
   explicit FnCast(const mpc_ast_t* const ast)
-      : state_{ast->state}, typeTo_{ast->children[2]}, expr_{getExpressionValue(
-                                                           ast->children[5])}
+      : Factor(kFnCast), state_{ast->state}, typeTo_{ast->children[2]},
+        expr_{getExpressionValue(ast->children[5])}
 
   {}
 
@@ -62,6 +62,10 @@ public:
       llvm_unreachable("TODO");
     }
     return error("invalid cast at line {}", state_.row + 1);
+  }
+
+  inline static bool classof(const Factor* const factor) {
+    return factor->getKind() == kFnCast;
   }
 
 private:
