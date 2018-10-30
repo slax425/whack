@@ -109,7 +109,7 @@ public:
       if (!defaultCaptureByValue_) {
         llvm_unreachable(format("capturing all closure variable(s) explicitly"
                                 " by reference is not implemented at line {}",
-                                ref->state.row + 1)
+                                state_.row + 1)
                              .c_str());
       }
       // we inherit any captured variables if enclosing function is a closure
