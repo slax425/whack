@@ -42,7 +42,7 @@ public:
   inline const bool qualified() const noexcept { return qualified_; }
 
 private:
-  const identifier_t identifier_;
+  identifier_t identifier_;
   ident_list_t hiding_;
   std::optional<std::string_view> as_;
   bool qualified_{false};

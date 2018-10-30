@@ -133,8 +133,9 @@ public:
   inline explicit constexpr Factor(const Kind kind = kExpression) noexcept
       : kind_{kind} {}
 
-  // Factor(const Factor&) = delete;
-  // Factor& operator=(const Factor&) = delete;
+  Factor(Factor&&) = default;
+  Factor(const Factor&) = delete;
+  Factor& operator=(const Factor&) = delete;
 
   inline const Kind getKind() const noexcept { return kind_; }
   virtual llvm::Expected<llvm::Value*> codegen(llvm::IRBuilder<>&) const = 0;
@@ -181,8 +182,9 @@ private:
 public:
   inline explicit constexpr Stmt(const Kind kind) noexcept : kind_{kind} {}
 
-  // Stmt(const Stmt&) = delete;
-  // Stmt& operator=(const Stmt&) = delete;
+  Stmt(Stmt&&) = default;
+  Stmt(const Stmt&) = delete;
+  Stmt& operator=(const Stmt&) = delete;
 
   inline const Kind getKind() const noexcept { return kind_; }
   virtual llvm::Error codegen(llvm::IRBuilder<>&) const = 0;
