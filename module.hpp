@@ -128,8 +128,11 @@ private:
   std::unique_ptr<ast::ModuleDecl> moduleDecl_;
   small_vector<ast::ModuleUse> moduleUse_;
   small_vector<ast::Exports> exports_;
-  // @todo use variant<>, call codegen with std::visit
-  small_vector<std::unique_ptr<const ast::AST>> elements_;
+  using element_t = std::variant<ast::CompilerOpt, ast::Alias, ast::ExternFunc,
+                                 /*ast::DataClass, ast::Interface,*/
+                                 ast::Enumeration, ast::Structure,
+                                 ast::StructFunc, ast::StructOp, ast::Function>;
+  small_vector<element_t> elements_;
 
   void init() {
     LLVMInitializeAllTargetInfos();
@@ -138,7 +141,7 @@ private:
     LLVMInitializeAllAsmParsers();
     LLVMInitializeAllAsmPrinters();
     LLVMInitializeNativeTarget();
-    // @todo Link in MCJIT for interpreter
+    LLVMLinkInMCJIT();
 
     auto targetTriple = LLVMGetDefaultTargetTriple();
     SCOPE_EXIT { LLVMDisposeMessage(targetTriple); };
@@ -174,18 +177,18 @@ private:
       }
 #define OPT(TAG, CLASS)                                                        \
   else if (tag == TAG) {                                                       \
-    elements_.emplace_back(std::make_unique<CLASS>(current));                  \
+    elements_.emplace_back(CLASS{current});                                    \
   }
-      OPT("compileropt|>", CompilerOpt) // @todo impl as Metadata
+      OPT("compileropt|>", CompilerOpt)
       OPT("externfunc|>", ExternFunc)
-      OPT("interface|>", Interface)
+      // OPT("interface|>", Interface)
       OPT("enumeration|>", Enumeration)
       OPT("function|>", Function)
       OPT("structure|>", Structure)
       OPT("alias|>", Alias)
       OPT("structfunc|>", StructFunc)
       OPT("structop|>", StructOp)
-      OPT("dataclass|>", DataClass)
+      // OPT("dataclass|>", DataClass)
 #undef OPT
     }
   }
@@ -200,31 +203,27 @@ private:
       return error("Invalid AST");
     }
     auto module = std::make_unique<llvm::Module>(moduleDecl_->name(), context_);
-    // @todo Link in loaded modules; mangle symbols according to exports table
-
-#define OPT(CLASS)                                                             \
-  if (const auto elt = dynamic_cast<const ast::CLASS*>(element.get())) {       \
-    if (auto err = elt->codegen(module.get())) {                               \
-      return err;                                                              \
-    }                                                                          \
-    continue; /*we've already matched*/                                        \
-  }
-    for (const auto& element : elements_) {
-      OPT(Alias)
-      OPT(ExternFunc)
-      OPT(DataClass)
-      OPT(Interface)
-      OPT(Enumeration)
-      OPT(Structure) OPT(StructFunc) OPT(StructOp) OPT(Function)
+    // @todo Link in loaded modules; mangle their symbols according to exports
+    // table?
+    auto mod = module.get();
+    llvm::Error err = llvm::Error::success();
+    for (const auto& elem : elements_) {
+      std::visit(
+          [&err, &mod](auto&& element) {
+            if (auto e = element.codegen(mod)) {
+              err = llvm::joinErrors(std::move(err), std::move(e));
+            }
+          },
+          elem);
     }
-#undef OPT
-
+    if (err) {
+      return err;
+    }
     passManager_.run(*module);
-
     return module;
   }
 };
 
 } // end namespace whack
-
+//
 #endif // WHACK_MODULE_HPP
