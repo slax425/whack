@@ -248,7 +248,7 @@ structfunc  : "func" '(' "mut"? <ident> ')'
                 <ident> '(' <args>? ')' <typelist>? <tags>?
                 (<body> | ('=' "default" ';')) ;
 
-interfacedef   : "interface" (':' <identifier> (',' <identifier>)*)? '{'
+interfacedef   : "interface" (':' (<scoperes> | <ident>) (',' (<scoperes> | <ident>))*)? '{'
                    (<fntype> <ident>? ';')+
                  '}' ;
 
