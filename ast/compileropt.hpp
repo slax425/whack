@@ -19,6 +19,7 @@
 #pragma once
 
 #include "ast.hpp"
+#include <llvm/IR/MDBuilder.h>
 
 namespace whack::ast {
 
@@ -27,10 +28,23 @@ public:
   explicit CompilerOpt(const mpc_ast_t* const ast)
       : options_{getIdentList(ast->children[2])} {}
 
-  const auto& options() const { return options_; }
+  llvm::Error codegen(llvm::Module* const module) const {
+    const auto MD = module->getOrInsertNamedMetadata("options");
+    llvm::MDBuilder MDBuilder{module->getContext()};
+    for (const auto& opt : options_) {
+      MD->addOperand(MDBuilder.createTBAARoot(opt));
+    }
+    return llvm::Error::success();
+  }
+
+  inline const auto& get() const { return options_; }
+
+  inline static auto get(const llvm::Module* const module) {
+    return getMetadataParts(*module, "options");
+  }
 
 private:
-  ident_list_t options_;
+  const ident_list_t options_;
 };
 
 } // end namespace whack::ast
