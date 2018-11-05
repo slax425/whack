@@ -1,4 +1,5 @@
 build/**
+docs/**
 #TODO.md
 pass/dtor.hpp
 pass/alloca.hpp
