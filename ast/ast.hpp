@@ -51,7 +51,7 @@ static auto getTags(const mpc_ast_t* const ast) {
 }
 
 inline static auto getOutermostAstTag(const mpc_ast_t* const ast) {
-  return getTags(ast).front();
+  return std::move(getTags(ast).front());
 }
 
 static auto getInnermostAstTag(const mpc_ast_t* const ast) {

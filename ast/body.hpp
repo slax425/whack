@@ -20,18 +20,26 @@
 
 #include "ast.hpp"
 #include "deferstmt.hpp"
+#include "ident.hpp"
+#include "tags.hpp"
 
 namespace whack::ast {
 
 class Body final : public Stmt {
 public:
-  explicit Body(const mpc_ast_t* const ast) : Stmt(kBody) {
-    for (auto i = 1; i < ast->children_num - 1; ++i) {
-      statements_.emplace_back(getStmt(ast->children[i]));
+  explicit Body(const mpc_ast_t* const ast) : Stmt(kBody), state_{ast->state} {
+    auto idx = 1;
+    if (getInnermostAstTag(ast->children[0]) == "tags") {
+      tags_ = std::make_unique<Tags>(ast->children[0]);
+      ++idx;
+    }
+    for (; idx < ast->children_num - 1; ++idx) {
+      statements_.emplace_back(getStmt(ast->children[idx]));
     }
   }
 
   llvm::Error codegen(llvm::IRBuilder<>& builder) const final {
+    begin_ = builder.GetInsertBlock();
     for (const auto& stmt : statements_) {
       if (auto err = stmt->codegen(builder)) {
         return err;
@@ -41,11 +49,12 @@ public:
                           std::pair{builder.GetInsertBlock(), stmt.get()});
       }
     }
+    end_ = builder.GetInsertBlock();
     return llvm::Error::success();
   }
 
   llvm::Error runScopeExit(llvm::IRBuilder<>& builder) const final {
-    // llvm::IRBuilder<>::InsertPointGuard{builder};
+    llvm::IRBuilder<>::InsertPointGuard{builder};
     const auto current = builder.GetInsertBlock();
     for (const auto& stmt : statements_) {
       if (!llvm::isa<Defer>(stmt.get())) {
@@ -76,6 +85,10 @@ public:
         }
       }
     }
+
+    if (tags_) {
+      return this->handleTags(builder);
+    }
     return llvm::Error::success();
   }
 
@@ -84,9 +97,36 @@ public:
   }
 
 private:
+  const mpc_state_t state_;
+  std::unique_ptr<Tags> tags_;
   small_vector<std::unique_ptr<Stmt>> statements_;
+  mutable llvm::BasicBlock* begin_;
+  mutable llvm::BasicBlock* end_;
   using deferral_info_t = std::pair<llvm::BasicBlock*, Stmt*>;
   mutable std::vector<deferral_info_t> deferrals_;
+
+  llvm::Error handleTags(llvm::IRBuilder<>& builder) const {
+    static llvm::StringMap<llvm::Attribute::AttrKind> InternalTags{
+        {"noinline", llvm::Attribute::AttrKind::NoInline},
+        {"inline", llvm::Attribute::AttrKind::InlineHint},
+        {"mustinline", llvm::Attribute::AttrKind::AlwaysInline},
+        {"noreturn", llvm::Attribute::AttrKind::NoReturn}};
+
+    const auto func = builder.GetInsertBlock()->getParent();
+    for (const auto& [name, args] : tags_->get()) {
+      if (name.index() == 0) { // <scoperes>
+        llvm_unreachable("not implemented!");
+      } else { // <ident>
+        const auto& tag = std::get<Ident>(name).name();
+        if (!InternalTags.count(tag)) { // @todo: Other tag kinds
+          return error("tag `{}` not implemented at line {}", tag.str(),
+                       state_.row + 1);
+        }
+        func->addFnAttr(InternalTags[tag]);
+      }
+    }
+    return llvm::Error::success();
+  }
 };
 
 } // end namespace whack::ast

@@ -62,10 +62,6 @@ public:
       ++idx;
     }
 
-    if (getOutermostAstTag(ast->children[idx]) == "tags") {
-      tags_ = std::make_unique<Tags>(ast->children[idx++]);
-    }
-
     if (getOutermostAstTag(ast->children[idx]) == "body") {
       body_ = std::make_unique<Body>(ast->children[idx]);
     }
@@ -186,7 +182,6 @@ private:
   std::unique_ptr<func_name_t> funcName_;
   std::unique_ptr<args_types_t> argsOrTypeList_;
   std::unique_ptr<Type> returnType_;
-  std::unique_ptr<Tags> tags_;
   std::unique_ptr<Body> body_;
 };
 

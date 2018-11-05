@@ -20,7 +20,6 @@
 
 #include "args.hpp"
 #include "body.hpp"
-#include "tags.hpp"
 #include "typelist.hpp"
 #include <llvm/IR/Attributes.h>
 
@@ -45,10 +44,6 @@ public:
 
     if (getOutermostAstTag(ast->children[++idx]) == "typelist") {
       returns_ = std::make_unique<TypeList>(ast->children[idx++]);
-    }
-
-    if (getOutermostAstTag(ast->children[idx]) == "tags") {
-      tags_ = std::make_unique<Tags>(ast->children[idx++]);
     }
 
     if (getOutermostAstTag(ast->children[idx]) == "body") {
@@ -175,7 +170,6 @@ private:
   std::string funcName_;
   std::unique_ptr<Args> args_;
   std::unique_ptr<TypeList> returns_;
-  std::unique_ptr<Tags> tags_;
   std::unique_ptr<Body> body_;
 };
 

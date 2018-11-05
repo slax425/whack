@@ -28,7 +28,7 @@ INTERNAL_CONSTANTS = [
 ]
 
 INTERNAL_TAGS = [
-	"inline", "mustinline"
+	"noinline", "inline", "mustinline", "noreturn"
 ]
 
 def getKeywordsList():

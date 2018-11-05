@@ -21,34 +21,43 @@
 #include "ast.hpp"
 #include "ident.hpp"
 #include "scoperes.hpp"
+#include <variant>
 
 namespace whack::ast {
 
 class Tags final : public AST {
 public:
-  // using tag_name_t = std::variant<ScopeRes, Ident>;
-  // using tag_t = std::pair<tag_name_t, small_vector<expr_t>>;
+  using tag_name_t = std::variant<ScopeRes, Ident>;
+  using tag_t = std::pair<tag_name_t, std::optional<small_vector<expr_t>>>;
 
   explicit Tags(const mpc_ast_t* const ast) {
-    mpc_ast_print((mpc_ast_t*)ast);
-    for (auto i = 2; i < ast->children_num - 1; i += 2) {
-      const auto ref = ast->children[i];
-      // auto name = getInnermostAstTag(ref) == "scoperes"
-      //                 ? static_cast<tag_name_t>(ScopeRes{ref})
-      //                 : static_cast<tag_name_t>(Ident{ref});
-      // small_vector<expr_t> exprList;
-      // if (std::string_view(ast->children[i + 1]->contents) == "(") {
-      //   exprList = getExprList(ast->children[i + 2]);
-      //   i += 3;
-      // }
-      // tags_.emplace_back(std::pair{std::move(name), std::move(exprList)});
+    if (ast->children_num == 2) { // single tag
+      tags_.emplace_back(getTag(ast->children[1]));
+    } else {
+      for (auto i = 2; i < ast->children_num - 1; i += 2) {
+        tags_.emplace_back(getTag(ast->children[i]));
+      }
     }
   }
 
-  // inline const auto& get() const { return tags_; }
+  inline const auto& get() const { return tags_; }
 
 private:
-  // small_vector<tag_t> tags_;
+  std::vector<tag_t> tags_;
+
+  static tag_name_t getName(const mpc_ast_t* const ast) {
+    return getInnermostAstTag(ast) == "scoperes"
+               ? static_cast<tag_name_t>(ScopeRes{ast})
+               : static_cast<tag_name_t>(Ident{ast});
+  }
+
+  static tag_t getTag(const mpc_ast_t* const ast) {
+    if (ast->children_num) {
+      return {getName(ast->children[0]),
+              std::optional{getExprList(ast->children[2])}};
+    }
+    return {getName(ast), std::nullopt};
+  }
 };
 
 } // end namespace whack::ast

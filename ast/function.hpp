@@ -21,7 +21,6 @@
 #include "args.hpp"
 #include "ast.hpp"
 #include "body.hpp"
-#include "tags.hpp"
 #include "typelist.hpp"
 #include <folly/Likely.h>
 #include <folly/ScopeGuard.h>
@@ -148,11 +147,6 @@ public:
       ++endIdx;
     }
 
-    if (getOutermostAstTag(ast->children[endIdx]) == "tags") {
-      tags_ = std::make_unique<Tags>(ast->children[endIdx]);
-      ++endIdx;
-    }
-
     body_ = std::make_unique<Body>(ast->children[endIdx]);
   }
 
@@ -239,7 +233,6 @@ private:
   const std::string name_;
   std::unique_ptr<Args> args_;
   std::unique_ptr<TypeList> returnTypeList_;
-  std::unique_ptr<Tags> tags_;
   std::unique_ptr<Body> body_;
 };
 

@@ -25,20 +25,20 @@
 
 namespace whack {
 
-#define CAST_TYPE(...) reinterpret_cast<llvm::Type *>((__VA_ARGS__))
+#define CAST_TYPE(...) reinterpret_cast<llvm::Type*>((__VA_ARGS__))
 
-inline static /*const*/ llvm::StringMap<llvm::Type *> BasicTypes{
+inline static /*const*/ llvm::StringMap<llvm::Type*> BasicTypes{
     {"void", CAST_TYPE(LLVMVoidType())},
-     {"bool", CAST_TYPE(LLVMInt1Type())},
-     {"char", CAST_TYPE(LLVMInt8Type())},
-     {"int", CAST_TYPE(LLVMInt32Type())},
-     {"int64", CAST_TYPE(LLVMInt64Type())},
-     {"half", CAST_TYPE(LLVMHalfType())},
-     {"double", CAST_TYPE(LLVMDoubleType())},
-     {"float", CAST_TYPE(LLVMFloatType())},
-     {"auto", llvm::cast<llvm::Type>(llvm::StructType::create(
-                  *reinterpret_cast<llvm::LLVMContext *>(
-                      LLVMGetGlobalContext())))}}; // placeholder
+    {"bool", CAST_TYPE(LLVMInt1Type())},
+    {"char", CAST_TYPE(LLVMInt8Type())},
+    {"int", CAST_TYPE(LLVMInt32Type())},
+    {"int64", CAST_TYPE(LLVMInt64Type())},
+    {"half", CAST_TYPE(LLVMHalfType())},
+    {"double", CAST_TYPE(LLVMDoubleType())},
+    {"float", CAST_TYPE(LLVMFloatType())},
+    {"auto", llvm::cast<llvm::Type>(
+                 llvm::StructType::create(*reinterpret_cast<llvm::LLVMContext*>(
+                     LLVMGetGlobalContext())))}}; // placeholder
 
 #undef CAST_TYPE
 

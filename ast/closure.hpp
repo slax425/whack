@@ -23,7 +23,6 @@
 #include "body.hpp"
 #include "metadata.hpp"
 #include "structure.hpp"
-#include "tags.hpp"
 #include "typelist.hpp"
 #include <llvm/IR/ValueSymbolTable.h>
 
@@ -70,10 +69,6 @@ public:
     }
     if (getOutermostAstTag(ast->children[++idx]) == "typelist") {
       returns_ = std::make_unique<TypeList>(ast->children[idx]);
-      ++idx;
-    }
-    if (getOutermostAstTag(ast->children[idx]) == "tags") {
-      tags_ = std::make_unique<Tags>(ast->children[idx]);
       ++idx;
     }
     body_ = std::make_unique<Body>(ast->children[idx]);
@@ -237,7 +232,6 @@ private:
   llvm::StringMap<expr_t> explicitCaptures_;
   bool defaultCaptureByValue_{true};
   std::unique_ptr<TypeList> returns_;
-  std::unique_ptr<Tags> tags_;
   std::unique_ptr<Body> body_;
 };
 
