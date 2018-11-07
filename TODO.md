@@ -9,14 +9,15 @@
 - [ ] Support implicit type conversions for structs via operator overloads
 - [ ] Support binary, octal & hexadecimal numbers
 - [x] Support explicit partial function application
-- [ ] Support partial function application for up to N - 1 of N args
-- [ ] Constistent Name Mangling (currently ad-hoc) -> support `export` construct
+- [x] Support partial function application for up to N - 1 of N args
+- [ ] Consistent Name Mangling (currently ad-hoc) -> support `export` construct
 - [ ] Distinguish pre/post increment/decrement operator functions (via mangled names?)
-- [ ] Interfaces, inheritance
+- [x] Interfaces
+- [x] Interface inheritance
 - [ ] Refactor/Redo types/type lists
 - [ ] Comments
 - [ ] Lift the `type(<expression>)` construct to be a type
-- [ ] Refactor `fntype` grammar to accepts `args` (to support naming arg types)
+- [x] xxxxxx Refactor `fntype` grammar to accepts `args` (to support naming arg types) xxxxx - Use comments!
 - [ ] Template to generate syntax file for sublime text from grammar
 - [ ] Proper structured bindings for pattern matching
 - [ ] Guarantee copy elision
