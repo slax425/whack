@@ -23,13 +23,11 @@
 
 namespace whack {
 
-template <typename... Args>
-inline constexpr static auto error(Args &&... args) {
+template <typename... Args> inline constexpr static auto error(Args&&... args) {
   return llvm::make_error<llvm::StringError>(
-      format(std::forward<Args>(args)...),
-      llvm::inconvertibleErrorCode());
+      format(std::forward<Args>(args)...), llvm::inconvertibleErrorCode());
 }
 
 } // end namespace whack
 
-#endif //WHACK_ERROR_HPP
+#endif // WHACK_ERROR_HPP

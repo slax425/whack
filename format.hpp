@@ -24,7 +24,7 @@
 namespace whack {
 
 template <typename T, typename... Args>
-inline static constexpr auto format(T &&str, Args &&... args) {
+inline static constexpr auto format(T&& str, Args&&... args) {
   return fmt::format(std::forward<T>(str), std::forward<Args>(args)...);
 }
 
@@ -32,14 +32,14 @@ inline static constexpr auto format(T &&str, Args &&... args) {
 static auto console = spdlog::stdout_color_mt("whack");
 
 template <typename T, typename... Args>
-/*[[noreturn]]*/ inline static void fatal(T &&str, Args &&... args) {
+/*[[noreturn]]*/ inline static void fatal(T&& str, Args&&... args) {
   spdlog::get("whack")->critical(std::forward<T>(str),
                                  std::forward<Args>(args)...);
   /*exit(-1);*/
 }
 
 template <typename T, typename... Args>
-inline static void warning(T &&str, Args &&... args) {
+inline static void warning(T&& str, Args&&... args) {
   spdlog::get("whack")->warn(std::forward<T>(str), std::forward<Args>(args)...);
 }
 
