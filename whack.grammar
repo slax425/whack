@@ -252,7 +252,7 @@ structfunc  : "func" '(' "mut"? <ident> ')'
                 (<body> | ('=' "default" ';')) ;
 
 interfacedef   : "interface" (':' (<scoperes> | <ident>) (',' (<scoperes> | <ident>))*)? '{'
-                   (<fntype> <ident>? ';')+
+                   (<fntype> <ident> ';')+
                  '}' ;
 
 interface   : "type" <ident> <interfacedef> ;
@@ -261,8 +261,7 @@ externfunc  : "extern" "func" <ident> '(' <typelist>? ')' <typelist>? ';' ;
 
 exports     : "export" <identlist> ';' ;
 
-moduleuse   : "use" <identifier> ("hiding"? '{' <identlist> '}')?
-                   (("as" <ident>) | "qualified")? ';' ;
+moduleuse   : "use" <identifier> ('!'? '{' <identlist> '}')? ("as" <ident>)? ';' ;
 
 moduledecl  : "module" <ident> ;
 
