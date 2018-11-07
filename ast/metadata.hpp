@@ -16,9 +16,9 @@
 #ifndef WHACK_METADATA_HPP
 #define WHACK_METADATA_HPP
 
-#include <llvm/IR/IRBuilder.h>
-
 #pragma once
+
+#include <llvm/IR/IRBuilder.h>
 
 namespace whack::ast {
 

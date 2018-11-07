@@ -55,7 +55,7 @@ public:
     for (size_t i = 0; i < options_.size(); ++i) {
       const auto option = format("{}::{}", name_, options_[i].data());
       if (module->getNamedValue(option)) {
-        return error("value `{}` already exists at line {}", option,
+        return error("enum option `{}` already exists at line {}", option,
                      state_.row + 1);
       }
       const auto value = llvm::cast<llvm::Constant>(Integral::get(i, type));

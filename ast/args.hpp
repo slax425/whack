@@ -70,7 +70,9 @@ public:
     small_vector<llvm::Type*> ret;
     for (const auto& arg : args_) {
       auto type = arg.type.codegen(module);
-      if (Type::getUnderlyingType(type)->isFunctionTy()) {
+      if (Type::getUnderlyingType(type)->isFunctionTy() ||
+          (type->isStructTy() &&
+           type->getStructName().startswith("interface::"))) {
         type = type->getPointerTo(0);
       }
       ret.push_back(type);

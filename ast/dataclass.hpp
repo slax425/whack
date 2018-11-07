@@ -31,10 +31,11 @@ public:
       : state_{ast->state}, class_{ast->children[1]->contents} {
     const auto ref = ast->children[2];
     for (auto i = 2; i < ref->children_num - 4; i += 4) {
-      const llvm::StringRef name{ref->children[i]->contents};
+      const auto& name = ref->children[i]->contents;
       if (getOutermostAstTag(ref->children[i + 2]) == "typelist") {
         TypeList typeList{ref->children[i + 2]};
-        variants_.emplace_back(std::pair{name, std::move(typeList)});
+        variants_.emplace_back(
+            std::pair{name, std::optional{std::move(typeList)}});
         ++i;
       } else {
         variants_.emplace_back(std::pair{name, std::nullopt});
@@ -55,14 +56,14 @@ public:
     llvm::MDBuilder MDBuilder{ctx};
     unsigned int biggestSize = 8;
     const auto dataClass = llvm::StructType::create(ctx, "class::" + class_);
-
     small_vector<std::pair<llvm::MDNode*, uint64_t>> metadata;
+
     for (const auto& [name, typeList] : variants_) {
       const auto classMD =
           reinterpret_cast<llvm::MDNode*>(MDBuilder.createString(name));
-      metadata.emplace_back(std::make_pair(classMD, metadata.size()));
+      metadata.emplace_back(std::pair{classMD, metadata.size()});
       // @todo Proper mangling
-      const auto className = format("class::{}::{}", class_, name.str());
+      const auto className = format("class::{}::{}", class_, name);
       if (typeList) {
         auto [types, variadic] = typeList.value().codegen(module);
         if (variadic) {
@@ -148,7 +149,7 @@ public:
 private:
   const mpc_state_t state_;
   const std::string class_;
-  small_vector<std::pair<llvm::StringRef, std::optional<TypeList>>> variants_;
+  std::vector<std::pair<std::string, std::optional<TypeList>>> variants_;
 };
 
 } // end namespace whack::ast

@@ -136,6 +136,7 @@ public:
   inline explicit constexpr Factor(const Kind kind) noexcept : kind_{kind} {}
 
   Factor(Factor&&) = default;
+  Factor& operator=(Factor&&) = default;
   Factor(const Factor&) = delete;
   Factor& operator=(const Factor&) = delete;
 
@@ -185,6 +186,7 @@ public:
   inline explicit constexpr Stmt(const Kind kind) noexcept : kind_{kind} {}
 
   Stmt(Stmt&&) = default;
+  Stmt& operator=(Stmt&&) = default;
   Stmt(const Stmt&) = delete;
   Stmt& operator=(const Stmt&) = delete;
 

@@ -61,7 +61,7 @@ public:
     if (name_ == "_") {
       llvm::GlobalVariable* discard;
       if (discard = module->getGlobalVariable("_"); !discard) {
-        static constexpr auto linkage = llvm::Function::ExternalLinkage;
+        static constexpr auto linkage = llvm::Function::InternalLinkage;
         (void)llvm::GlobalVariable{BasicTypes["char"], true, linkage, nullptr,
                                    "_"};
         discard = module->getGlobalVariable("_");
@@ -77,6 +77,42 @@ public:
   inline const auto& name() const { return name_; }
 
   // @todo Check enumerations...
+  static llvm::Error isUnique(const llvm::Module* const module,
+                              const std::string& name,
+                              const mpc_state_t state) {
+    const auto line = state.row + 1;
+    if (module->getFunction(name)) {
+      return error("identifier `{}` already exists as a function "
+                   "at line {}",
+                   name, line);
+    }
+
+    if (getMetadataOperand(*module, "structures", name)) {
+      return error("identifier `{}` already exists as a structure "
+                   "at line {}",
+                   name, line);
+    }
+
+    if (getMetadataOperand(*module, "interfaces", name)) {
+      return error("identifier `{}` already exists as an interface "
+                   "at line {}",
+                   name, line);
+    }
+
+    if (getMetadataOperand(*module, "classes", name)) {
+      return error("identifier `{}` already exists as a data class "
+                   "at line {}",
+                   name, line);
+    }
+
+    if (getMetadataOperand(*module, "aliases", name)) {
+      return error("identifier `{}` already exists as an alias "
+                   "at line {}",
+                   name, line);
+    }
+    return llvm::Error::success();
+  }
+
   static llvm::Error isUnique(const llvm::IRBuilder<>& builder,
                               const std::string& name,
                               const mpc_state_t state) {
@@ -98,31 +134,7 @@ public:
                    name, func->getName().str(), line);
     }
 
-    const auto module = func->getParent();
-    if (module->getFunction(name)) {
-      return error("identifier `{}` already exists as a function "
-                   "at line {}",
-                   name, line);
-    }
-
-    if (getMetadataOperand(*module, "structures", name)) {
-      return error("identifier `{}` already exists as a structure "
-                   "at line {}",
-                   name, line);
-    }
-
-    if (getMetadataOperand(*module, "classes", name)) {
-      return error("identifier `{}` already exists as a data class "
-                   "at line {}",
-                   name, line);
-    }
-
-    if (getMetadataOperand(*module, "aliases", name)) {
-      return error("identifier `{}` already exists as an alias "
-                   "at line {}",
-                   name, line);
-    }
-    return llvm::Error::success();
+    return isUnique(func->getParent(), name, state);
   }
 
   inline static bool classof(const Factor* const factor) {

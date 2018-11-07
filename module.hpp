@@ -102,7 +102,7 @@ public:
     if (LLVMTargetMachineEmitToFile(targetMachine_, llvm::wrap(module.get()),
                                     const_cast<char*>(objFileName.data()),
                                     LLVMObjectFile, &err)) {
-      auto ret = error(std::string{err});
+      auto ret = error(err);
       LLVMDisposeMessage(err);
       return ret;
     } else {
@@ -129,7 +129,7 @@ private:
   small_vector<ast::ModuleUse> moduleUse_;
   small_vector<ast::Exports> exports_;
   using element_t = std::variant<ast::CompilerOpt, ast::Alias, ast::ExternFunc,
-                                 /*ast::DataClass, ast::Interface,*/
+                                 ast::DataClass, ast::Interface,
                                  ast::Enumeration, ast::Structure,
                                  ast::StructFunc, ast::StructOp, ast::Function>;
   small_vector<element_t> elements_;
@@ -181,14 +181,14 @@ private:
   }
       OPT("compileropt|>", CompilerOpt)
       OPT("externfunc|>", ExternFunc)
-      // OPT("interface|>", Interface)
+      OPT("interface|>", Interface)
       OPT("enumeration|>", Enumeration)
       OPT("function|>", Function)
       OPT("structure|>", Structure)
       OPT("alias|>", Alias)
       OPT("structfunc|>", StructFunc)
       OPT("structop|>", StructOp)
-      // OPT("dataclass|>", DataClass)
+      OPT("dataclass|>", DataClass)
 #undef OPT
     }
   }
@@ -209,12 +209,15 @@ private:
     llvm::Error err = llvm::Error::success();
     for (const auto& elem : elements_) {
       std::visit(
-          [&err, &mod](auto&& element) {
+          [&mod, &err](auto&& element) {
             if (auto e = element.codegen(mod)) {
               err = llvm::joinErrors(std::move(err), std::move(e));
             }
           },
           elem);
+      if (err) { // we fail early for now @todo
+        return err;
+      }
     }
     if (err) {
       return err;
@@ -225,5 +228,5 @@ private:
 };
 
 } // end namespace whack
-//
+
 #endif // WHACK_MODULE_HPP

@@ -20,20 +20,24 @@
 
 #include "ast.hpp"
 #include "ident.hpp"
+#include "overloadid.hpp"
 #include "scoperes.hpp"
 #include <variant>
 
 namespace whack::ast {
 
-using identifier_t = std::variant<ScopeRes, Ident>;
+using identifier_t = std::variant<OverloadID, ScopeRes, Ident>;
 
-const static identifier_t getIdentifier(const mpc_ast_t* const ast) {
+static identifier_t getIdentifier(const mpc_ast_t* const ast) {
   const auto tag = getInnermostAstTag(ast);
+  if (tag == "overloadid") {
+    return static_cast<identifier_t>(OverloadID{ast});
+  }
   if (tag == "scoperes") {
-    return ScopeRes{ast};
+    return static_cast<identifier_t>(ScopeRes{ast});
   }
   if (tag == "ident") {
-    return Ident{ast};
+    return static_cast<identifier_t>(Ident{ast});
   }
   llvm_unreachable("invalid identifier kind!");
 }

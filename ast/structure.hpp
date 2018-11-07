@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include "ast.hpp"
 #include "declassign.hpp"
 #include "tags.hpp"
 #include <llvm/IR/MDBuilder.h>
@@ -44,8 +45,8 @@ public:
 
   llvm::Error codegen(llvm::Module* const module) const {
     auto structure = llvm::StructType::create(module->getContext(), name_);
-    llvm::SmallVector<llvm::Type*, 10> fields;
-    llvm::SmallVector<llvm::StringRef, 10> fieldNames;
+    small_vector<llvm::Type*> fields;
+    small_vector<llvm::StringRef> fieldNames;
     for (const auto& [tags, decl] : members_) {
       if (!decl.initializers().empty()) {
         warning("member initializers ignored in struct "
@@ -54,10 +55,7 @@ public:
                 name_, state_.row + 1);
       }
       // @todo Use tags
-      auto type = decl.type(module);
-      if (llvm::isa<llvm::FunctionType>(type)) {
-        type = type->getPointerTo(0); // we store function pointers
-      }
+      const auto type = decl.type(module);
       for (const auto& var : decl.variables()) {
         fieldNames.push_back(var);
         fields.push_back(type);
@@ -70,8 +68,9 @@ public:
 
   const auto& name() const { return name_; }
 
+  template <typename T>
   static void addMetadata(llvm::Module* const module, llvm::StringRef name,
-                          llvm::ArrayRef<llvm::StringRef> fields) {
+                          const small_vector<T>& fields) {
     std::vector<std::pair<llvm::MDNode*, uint64_t>> metadata;
     llvm::MDBuilder MDBuilder{module->getContext()};
     for (const auto& field : fields) {

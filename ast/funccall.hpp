@@ -20,6 +20,7 @@
 
 #include "ast.hpp"
 #include "dataclass.hpp"
+#include "interface.hpp"
 #include <llvm/IR/ValueSymbolTable.h>
 
 namespace whack::ast {
@@ -27,10 +28,12 @@ namespace whack::ast {
 class FuncCall final : public Factor {
 public:
   explicit constexpr FuncCall(const mpc_ast_t* const ast)
-      : Factor(kFuncCall), await_{std::string_view(
-                                      ast->children[0]->contents) == "await"},
+      : Factor(kFuncCall),
+        // clang-format off
+        await_{std::string_view(ast->children[0]->contents) == "await"},
         async_{!await_ &&
                std::string_view(ast->children[0]->contents) == "async"},
+        // clang-format on
         ast_{ast} {}
 
   llvm::Expected<llvm::Value*> codegen(llvm::IRBuilder<>& builder) const final {
@@ -47,7 +50,9 @@ public:
       // @todo Refactor
       // if success, discard failures, else return failures (not a dataclass
       // ctor or cross module call)
-      llvm_unreachable("cross-module func calls not implemented");
+      return error("cross-module func calls not implemented "
+                   "at line {}",
+                   ast_->state.row + 1);
     }
     return this->call(builder);
   }
@@ -80,9 +85,10 @@ private:
     return args;
   }
 
-  static llvm::Error checkFuncCall(const llvm::Value* const value,
-                                   llvm::ArrayRef<llvm::Value*> args,
-                                   const mpc_state_t state) {
+  static llvm::Error checkTransformArgs(llvm::IRBuilder<>& builder,
+                                        llvm::Value* const value,
+                                        small_vector<llvm::Value*>& args,
+                                        const mpc_state_t state) {
     auto type = value->getType();
     if (type->isPointerTy() && type->getPointerElementType()->isFunctionTy()) {
       type = type->getPointerElementType();
@@ -90,6 +96,7 @@ private:
       return error("expected `{}` to be callable at line {}",
                    value->getName().str(), state.row + 1);
     }
+
     const auto funcType = llvm::cast<llvm::FunctionType>(type);
     if (funcType->getNumParams() != args.size()) {
       return error("invalid number of arguments given for function `{}` "
@@ -99,6 +106,7 @@ private:
     }
 
     for (size_t i = 0; i < args.size(); ++i) {
+      // @todo
       if (i == 1 && args[i]->getName() == "::expansion") {
         if (args.size() != 2) {
           return error("expected only 2 arguments for partial function "
@@ -106,12 +114,25 @@ private:
                        state.row + 1, args.size());
         }
         break;
-      } else if (args[i]->getName() == "::expansion") {
+      }
+      // @todo
+      if (args[i]->getName() == "::expansion") {
         return error("cannot use an expansion as argument {} "
                      "in call to function `{}` at line {}",
                      i, value->getName().str(), state.row + 1);
       }
-      if (args[i]->getType() != funcType->getParamType(i)) {
+
+      // @todo Check if we need an operator overload?
+      // @todo Check if we need an implicit cast (+warning)?
+      const auto paramType = funcType->getParamType(i);
+      const auto [type, isStruct] = Type::isStructKind(paramType);
+      if (isStruct && type->getStructName().startswith("interface::")) {
+        auto impl = Interface::cast(builder, paramType, args[i], state);
+        if (!impl) {
+          return impl.takeError();
+        }
+        args[i] = *impl;
+      } else if (args[i]->getType() != paramType) {
         return error("invalid type given for argument {} of call to "
                      "function `{}` at line {}",
                      i + 1, value->getName().str(), state.row + 1);
@@ -122,9 +143,11 @@ private:
 
   llvm::Expected<llvm::Value*> call(llvm::IRBuilder<>& builder) const {
     if (await_) { // @todo enclosing function becomes a coroutine
-      llvm_unreachable("awaitable function calls not implemented");
+      return error("awaitable function calls not implemented at line {}",
+                   ast_->state.row + 1);
     } else if (async_) { // @todo launch call in a new thread?
-      llvm_unreachable("async function calls not implemented");
+      return error("async function calls not implemented at line {}",
+                   ast_->state.row + 1);
     }
 
     small_vector<llvm::Value*> funcs;
@@ -152,13 +175,25 @@ private:
     }
 
     const auto partialApply =
-        [&builder](llvm::Value* const fun,
-                   llvm::Value* const firstArg) -> llvm::Function* {
-      const auto func = llvm::cast<llvm::Function>(fun);
-      const auto newFuncType = llvm::FunctionType::get(
-          func->getReturnType(), func->getFunctionType()->params().drop_front(),
-          func->isVarArg());
-      return bindFirstFuncArgument(builder, func, firstArg, newFuncType);
+        [&builder, state = ast_->state](llvm::Value* const fun,
+                                        llvm::ArrayRef<llvm::Value*> args)
+        -> llvm::Expected<llvm::Function*> {
+      auto func = llvm::cast<llvm::Function>(fun);
+      const auto numParams = func->getFunctionType()->params().size();
+      if (numParams <= args.size()) {
+        return error("cannot partially applicate function `{}` "
+                     "(number of arguments exceeds {}, got {}) "
+                     "at line {}",
+                     func->getName().str(), numParams, args.size(),
+                     state.row + 1);
+      }
+      for (const auto arg : args) {
+        const auto newFuncType = llvm::FunctionType::get(
+            func->getReturnType(),
+            func->getFunctionType()->params().drop_front(), func->isVarArg());
+        func = bindFirstFuncArgument(builder, func, arg, newFuncType);
+      }
+      return func;
     };
 
     llvm::Value* value;
@@ -178,28 +213,42 @@ private:
         for (size_t j = 0; j < funcs.size(); ++j) {
           const auto func = funcs[j];
           if (j == 0) {
-            if (auto err = checkFuncCall(func, arguments, state)) {
+            if (auto err =
+                    checkTransformArgs(builder, func, arguments, state)) {
               return err;
             }
-            if (arguments.size() == 2 &&
-                arguments[1]->getName() == "::expansion") {
-              value = partialApply(func, arguments[0]);
+            if (!arguments.empty() &&
+                arguments.back()->getName() == "::expansion") {
+              arguments.pop_back();
+              if (auto apply = partialApply(func, arguments)) {
+                value = *apply;
+              } else {
+                return apply.takeError();
+              }
             } else {
               value = builder.CreateCall(func, arguments);
             }
           } else {
-            if (auto err = checkFuncCall(func, value, state)) {
+            arguments = {value};
+            if (auto err =
+                    checkTransformArgs(builder, func, arguments, state)) {
               return err;
             }
-            value = builder.CreateCall(func, value);
+            value = builder.CreateCall(func, arguments);
           }
         }
       } else {
-        if (auto err = checkFuncCall(value, arguments, state)) {
+        if (auto err = checkTransformArgs(builder, value, arguments, state)) {
           return err;
         }
-        if (arguments.size() == 2 && arguments[1]->getName() == "::expansion") {
-          value = partialApply(value, arguments[0]);
+        if (!arguments.empty() &&
+            arguments.back()->getName() == "::expansion") {
+          arguments.pop_back();
+          if (auto apply = partialApply(value, arguments)) {
+            value = *apply;
+          } else {
+            return apply.takeError();
+          }
         } else {
           value = builder.CreateCall(value, arguments);
         }

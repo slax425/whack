@@ -121,8 +121,8 @@ public:
   }
 
   // @todo
-  static std::pair<const llvm::/*Struct*/ Type*, bool>
-  isStructKind(const llvm::Type* const type) {
+  static std::pair<llvm::/*Struct*/ Type*, bool>
+  isStructKind(llvm::Type* const type) {
     if (type->isStructTy()) {
       return {type, true};
     }

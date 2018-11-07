@@ -6,15 +6,47 @@ func t2() bool {
 	return true;
 }
 
+type Ra interface {
+	func(() -> char*) Jah;
+}
+
+type Ta interface {
+	func(() -> char*) Duh;
+	func(() -> char*) Vuh;
+}
+
+type Gool interface : Ra, Ta {
+	func(() -> bool) Cas;
+	func(() -> int) Num;
+}
+
+func Test(Gool b) bool {
+	return b.Cas();
+}
+
+func TestB(Ra b) char* {
+	_ = puts(b.Jah());
+	return b.Jah();
+}
+
 type Rest struct { char* msg; }
 
-func (Rest) amazing(bool rr) int {
+func (Rest) amazing(bool rr) int @inline {
 	_ = t2();
 	if rr puts(this.msg);
 	return 0;
 }
 
-func (Rest) ama(int b) int {
+func (Rest) Jah() char* {
+	return "Rest";
+}
+
+func ttt() {
+	Rest r;
+	_ = TestB(r);
+}
+
+func (Rest) ama(int b) int @inline {
 	t2();
 	return b;
 }
@@ -26,7 +58,7 @@ func testPartialApply(char* one, char* two) {
 
 func closureExample1(bool p) auto {
 	return func(bool a) auto {
-		return func(int x) func(() -> bool) {
+		return func(int x) func(() -> bool) @mustinline {
 			return func() bool {
 				return x < 10;
 			};
@@ -72,5 +104,6 @@ func main(int argc, char** argv) int {
 	let apply = testPartialApply("Foo, ", ...);
 	apply("Bar!");
 	testDynamicMemoryAndClosures();
+	ttt();
 	return ret;
 }

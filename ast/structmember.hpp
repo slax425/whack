@@ -41,39 +41,41 @@ public:
 
     const auto& module = *func->getParent();
     for (auto i = 2; i < ast_->children_num; i += 2) {
-      auto type = extracted->getType();
-      if (!type->isStructTy()) {
-        type = type->getPointerElementType();
-        if (!type->isStructTy()) {
-          return error("expected `{}` to be a struct type at "
-                       "line {}",
-                       ast_->children[i - 2]->contents, ast_->state.row + 1);
-        }
+      const auto [type, isStruct] = Type::isStructKind(extracted->getType());
+      if (!isStruct) {
+        return error("expected `{}` to be a struct type at line {}",
+                     ast_->children[i - 2]->contents, ast_->state.row + 1);
       }
-
-      const auto structName = type->getStructName().str();
+      const auto structName = type->getStructName();
       const auto memberRef = ast_->children[i];
       const auto& member = memberRef->contents;
       if (const auto idx = getIndex(module, structName, member)) {
         extracted =
             builder.CreateStructGEP(type, extracted, idx.value(), member);
+        if (structName.startswith("interface::")) {
+          extracted = builder.CreateLoad(extracted);
+        }
       } else if (const auto memFun = module.getFunction(
-                     format("struct::{}::{}", structName, member))) {
+                     format("struct::{}::{}", structName.str(), member))) {
         // assert(ast_->children_num == 3);
-        const auto newFuncType = llvm::FunctionType::get(
-            memFun->getReturnType(),
-            memFun->getFunctionType()->params().drop_front(),
-            memFun->isVarArg());
-        extracted =
-            bindFirstFuncArgument(builder, memFun, extracted, newFuncType);
+        extracted = bindThis(builder, memFun, extracted);
         extracted->setName(extracted->getName().str() + "." + member);
       } else {
         return error("`{}` is not a field or member function "
                      "for struct `{}` at line {}",
-                     member, structName, memberRef->state.row + 1);
+                     member, structName.str(), memberRef->state.row + 1);
       }
     }
     return extracted;
+  }
+
+  inline static llvm::Function* bindThis(llvm::IRBuilder<>& builder,
+                                         llvm::Function* const memFun,
+                                         llvm::Value* const thiz) {
+    const auto newFuncType = llvm::FunctionType::get(
+        memFun->getReturnType(),
+        memFun->getFunctionType()->params().drop_front(), memFun->isVarArg());
+    return bindFirstFuncArgument(builder, memFun, thiz, newFuncType);
   }
 
   inline static std::optional<unsigned> getIndex(const llvm::Module& module,
