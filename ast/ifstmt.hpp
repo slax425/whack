@@ -29,7 +29,7 @@ public:
   explicit If(const mpc_ast_t* const ast) : Stmt(kIf) {
     const auto tag = getOutermostAstTag(ast->children[1]);
     if (tag == "letbind") {
-      llvm_unreachable("pattern matching data classes not implemented");
+      warning("pattern matching data classes not implemented");
     } else {
       auto idx = 1;
       while (getOutermostAstTag(ast->children[idx]) == "letexpr") {

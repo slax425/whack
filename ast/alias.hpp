@@ -19,6 +19,7 @@
 #pragma once
 
 #include "ast.hpp"
+#include "ident.hpp"
 #include "metadata.hpp"
 #include "typelist.hpp"
 #include <llvm/IR/MDBuilder.h>
@@ -32,7 +33,11 @@ public:
         typeList_{ast->children[3]} {}
 
   llvm::Error codegen(llvm::Module* const module) const {
-    const auto [types, variadic] = typeList_.codegen(module);
+    auto typeList = typeList_.codegen(module);
+    if (!typeList) {
+      return typeList.takeError();
+    }
+    const auto& [types, variadic] = *typeList;
     if (variadic) {
       return error("variadic types not allowed in alias "
                    "list at line {}",
@@ -44,7 +49,7 @@ public:
                    state_.row + 1, identList_.size(), types.size());
     }
     for (size_t i = 0; i < types.size(); ++i) {
-      if (auto err = add(module, identList_[i].data(), types[i], state_)) {
+      if (auto err = add(module, identList_[i], types[i], state_)) {
         return err;
       }
     }
@@ -53,17 +58,20 @@ public:
 
   inline void remove(llvm::Module* const module) const {
     for (size_t i = 0; i < identList_.size(); ++i) {
-      remove(module, identList_[i].data());
+      remove(module, identList_[i]);
     }
   }
 
   static llvm::Error add(llvm::Module* const module, llvm::StringRef name,
-                         llvm::Type* const type, const mpc_state_t state = {}) {
-    const auto aliases = getMetadataParts(*module, "aliases");
+                         llvm::Type* const type, const mpc_state_t state) {
+    const auto aliases = getMetadataParts<1>(*module, "aliases");
     if (std::find(aliases.begin(), aliases.end(), name) != aliases.end()) {
       return error("alias `{}` already exists in scope "
                    "at line {}",
-                   name.str(), state.row + 1);
+                   name.data(), state.row + 1);
+    }
+    if (auto err = Ident::isUnique(module, name, state)) {
+      return err;
     }
     llvm::MDBuilder MDBuilder{module->getContext()};
     const auto domain = reinterpret_cast<llvm::MDNode*>(
@@ -73,9 +81,8 @@ public:
     return llvm::Error::success();
   }
 
-  inline static void remove(const llvm::Module* const module,
-                            llvm::StringRef name) {
-    if (auto alias = getMetadataOperand(*module, "aliases", name)) {
+  static void remove(const llvm::Module* const module, llvm::StringRef name) {
+    if (const auto alias = getMetadataOperand(*module, "aliases", name)) {
       // alias.value()->removeFromParent();
     }
   }

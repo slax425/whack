@@ -32,7 +32,7 @@ public:
   }
 
   llvm::Error runScopeExit(llvm::IRBuilder<>& builder) const final {
-    builder.SetInsertPoint(&builder.GetInsertBlock()->back()); // @todo
+    builder.SetInsertPoint(&builder.GetInsertBlock()->back());
     if (auto err = stmt_->codegen(builder)) {
       return err;
     }

@@ -30,6 +30,8 @@ namespace whack::ast {
 
 class Closure final : public Factor {
 public:
+  enum DefaultCaptureMode { None, AllByValue, AllByReference };
+
   explicit Closure(const mpc_ast_t* const ast)
       : Factor(kClosure), state_{ast->state} {
     auto idx = 2;
@@ -42,21 +44,27 @@ public:
         }
         if (ref->children_num) {
           const auto name = ref->children[0]->contents;
+          // @todo
           const bool isRef =
               std::string_view(ref->children[1]->contents) == "&";
           explicitCaptures_[name] =
               getExpressionValue(ref->children[isRef ? 0 : 2]);
         } else {
           const std::string_view view{ref->contents};
-          if (view == "=") { // "=" is the default
-            // exit early
-            ++idx;
-            break;
+          if (view == "=") {
+            if (defaultCaptureMode_ != None) {
+              warning("default capture mode for closure re-declared "
+                      "at line {}",
+                      ref->state.row + 1);
+            }
+            defaultCaptureMode_ = AllByValue;
           } else if (view == "&") {
-            defaultCaptureByValue_ = false;
-            // exit early
-            ++idx;
-            break;
+            if (defaultCaptureMode_ != None) {
+              warning("default capture mode for closure re-declared "
+                      "at line {}",
+                      ref->state.row + 1);
+            }
+            defaultCaptureMode_ = AllByReference;
           } else {
             explicitCaptures_[ref->contents] = getExpressionValue(ref);
           }
@@ -77,10 +85,16 @@ public:
   llvm::Expected<llvm::Value*> codegen(llvm::IRBuilder<>& builder) const final {
     const auto enclosingFn = builder.GetInsertBlock()->getParent();
     const auto module = enclosingFn->getParent();
-    auto returnType = Type::getReturnType(
-        module->getContext(),
-        returns_ ? std::optional{returns_->codegen(module)} : std::nullopt,
-        state_);
+    std::optional<typelist_t> returns{std::nullopt};
+    if (returns_) {
+      auto typeList = returns_->codegen(module);
+      if (!typeList) {
+        return typeList.takeError();
+      }
+      returns = std::move(*typeList);
+    }
+    auto returnType =
+        Type::getReturnType(module->getContext(), returns, state_);
     if (!returnType) {
       return returnType.takeError();
     }
@@ -89,38 +103,30 @@ public:
     small_vector<llvm::Value*> scopedValues;
     small_vector<llvm::StringRef> scopedNames;
 
-    if (!explicitCaptures_.empty()) {
-      for (const auto& capture : explicitCaptures_) {
-        scopedNames.push_back(capture.getKey());
-        auto val = capture.getValue()->codegen(builder);
-        if (!val) {
-          return val.takeError();
-        }
-        const auto value = *val;
-        scopedValues.push_back(value);
-        scopedTypes.push_back(value->getType());
-      }
-    } else {
-      if (!defaultCaptureByValue_) {
-        llvm_unreachable(format("capturing all closure variable(s) explicitly"
-                                " by reference is not implemented at line {}",
-                                state_.row + 1)
-                             .c_str());
-      }
+    if (defaultCaptureMode_ == AllByReference) {
+      return error("capturing all closure variable(s) explicitly"
+                   " by reference is not implemented at line {}",
+                   state_.row + 1);
+    } else if (defaultCaptureMode_ == AllByValue) {
       // we inherit any captured variables if enclosing function is a closure
       if (enclosingFn->getName().startswith("::closure")) {
-        const auto enclosingEnv =
-            llvm::cast<llvm::Value>(&enclosingFn->arg_begin()[0]);
-        const auto enclosingEnvType =
-            enclosingEnv->getType()->getPointerElementType();
-        scopedNames = getMetadataParts(*module, "structures",
-                                       enclosingEnvType->getStructName());
-        for (size_t i = 0; i < scopedNames.size(); ++i) {
-          const auto ptr =
-              builder.CreateStructGEP(enclosingEnvType, enclosingEnv, i, "");
-          const auto val = builder.CreateLoad(ptr);
-          scopedValues.push_back(val);
-          scopedTypes.push_back(val->getType());
+        if (!enclosingFn->arg_empty()) {
+          const auto enclosingEnv =
+              llvm::cast<llvm::Value>(&enclosingFn->arg_begin()[0]);
+          // we ensure first parameter is an environment structure
+          if (enclosingEnv->getName() == ".env") {
+            const auto enclosingEnvType =
+                enclosingEnv->getType()->getPointerElementType();
+            scopedNames = getMetadataParts(*module, "structures",
+                                           enclosingEnvType->getStructName());
+            for (size_t i = 0; i < scopedNames.size(); ++i) {
+              const auto ptr = builder.CreateStructGEP(enclosingEnvType,
+                                                       enclosingEnv, i, "");
+              const auto val = builder.CreateLoad(ptr);
+              scopedValues.push_back(val);
+              scopedTypes.push_back(val->getType());
+            }
+          }
         }
       }
       for (const auto& symbol : *enclosingFn->getValueSymbolTable()) {
@@ -135,42 +141,76 @@ public:
       }
     }
 
-    const auto env = llvm::StructType::create(module->getContext());
+    for (const auto& capture : explicitCaptures_) {
+      const auto name = capture.getKey();
+      if (std::find(scopedNames.begin(), scopedNames.end(), name) !=
+          scopedNames.end()) {
+        return error("variable name `{}` already in use "
+                     "for closure capture list at line {}",
+                     name.str(), state_.row + 1);
+      }
+      scopedNames.push_back(name);
+      auto val = capture.getValue()->codegen(builder);
+      if (!val) {
+        return val.takeError();
+      }
+      const auto value = *val;
+      scopedValues.push_back(value);
+      scopedTypes.push_back(value->getType());
+    }
+
     small_vector<llvm::Type*> argTypes;
     if (args_) {
-      argTypes = args_->types(module);
-      argTypes.insert(argTypes.begin(), env->getPointerTo(0));
-    } else {
-      argTypes = {env->getPointerTo(0)};
+      auto types = args_->types(module);
+      if (!types) {
+        return types.takeError();
+      }
+      argTypes = std::move(*types);
+    }
+
+    const auto hasEnv = !scopedValues.empty();
+    if (hasEnv) {
+      argTypes.insert(
+          argTypes.begin(),
+          llvm::StructType::create(module->getContext())->getPointerTo(0));
     }
 
     auto func = llvm::Function::Create(
         llvm::FunctionType::get(*returnType, argTypes,
                                 args_ ? args_->variadic() : false),
         llvm::Function::ExternalLinkage, "::closure", module);
-    func->arg_begin()[0].setName(".env");
-    func->addParamAttr(0, llvm::Attribute::Nest);
+
+    if (hasEnv) {
+      func->arg_begin()[0].setName(".env");
+      func->addParamAttr(0, llvm::Attribute::Nest);
+    }
+
     if (args_) {
+      const auto j = static_cast<int>(hasEnv);
       const auto names = args_->names();
       for (size_t i = 0; i < names.size(); ++i) {
-        if (std::find(scopedNames.begin(), scopedNames.end(), names[i]) !=
-            scopedNames.end()) {
+        if (hasEnv && std::find(scopedNames.begin(), scopedNames.end(),
+                                names[i]) != scopedNames.end()) {
           return error("parameter name `{}` for closure already exists "
                        "as a scoped variable name at line {}",
                        names[i].str(), state_.row + 1);
         }
-        func->arg_begin()[i + 1].setName(names[i]);
+        func->arg_begin()[i + j].setName(names[i]);
       }
-      for (size_t i = 0; i < func->arg_size() - 1; ++i) {
+      for (size_t i = 0; i < func->arg_size() - j; ++i) {
         if (!args_->arg(i).mut) {
-          func->addParamAttr(i + 1, llvm::Attribute::ReadOnly);
+          func->addParamAttr(i + j, llvm::Attribute::ReadOnly);
         }
       }
     }
 
-    env->setName(func->getName());
-    env->setBody(scopedTypes);
-    Structure::addMetadata(module, env->getName(), scopedNames);
+    if (hasEnv) {
+      const auto env = llvm::cast<llvm::StructType>(
+          argTypes.front()->getPointerElementType());
+      env->setName(func->getName());
+      env->setBody(scopedTypes);
+      Structure::addMetadata(module, env->getName(), scopedNames);
+    }
 
     const auto entry =
         llvm::BasicBlock::Create(func->getContext(), "entry", func);
@@ -210,16 +250,19 @@ public:
       }
     }
 
-    const auto scopeVars = builder.CreateAlloca(env, 0, nullptr, "");
-    for (size_t i = 0; i < scopedValues.size(); ++i) {
-      const auto ptr = builder.CreateStructGEP(env, scopeVars, i, "");
-      builder.CreateStore(scopedValues[i], ptr);
+    if (hasEnv) {
+      const auto env = argTypes.front()->getPointerElementType();
+      const auto scopeVars = builder.CreateAlloca(env, 0, nullptr, "");
+      for (size_t i = 0; i < scopedValues.size(); ++i) {
+        const auto ptr = builder.CreateStructGEP(env, scopeVars, i, "");
+        builder.CreateStore(scopedValues[i], ptr);
+      }
+      const auto closureType = llvm::FunctionType::get(
+          *deduced, func->getFunctionType()->params().drop_front(),
+          func->isVarArg());
+      return bindFirstFuncArgument(builder, func, scopeVars, closureType);
     }
-
-    const auto closureType = llvm::FunctionType::get(
-        *deduced, func->getFunctionType()->params().drop_front(),
-        func->isVarArg());
-    return bindFirstFuncArgument(builder, func, scopeVars, closureType);
+    return func;
   }
 
   inline static bool classof(const Factor* const factor) {
@@ -230,7 +273,7 @@ private:
   const mpc_state_t state_;
   std::unique_ptr<Args> args_;
   llvm::StringMap<expr_t> explicitCaptures_;
-  bool defaultCaptureByValue_{true};
+  DefaultCaptureMode defaultCaptureMode_{None};
   std::unique_ptr<TypeList> returns_;
   std::unique_ptr<Body> body_;
 };

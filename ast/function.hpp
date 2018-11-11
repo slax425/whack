@@ -28,25 +28,32 @@
 
 namespace whack::ast {
 
-inline static llvm::FunctionType*
+static llvm::Expected<llvm::FunctionType*>
 getFuncType(const llvm::Module* const module, llvm::Type* const returnType,
-            const Args* const args = nullptr) {
+            const Args* const args) {
   if (!args) {
     return llvm::FunctionType::get(returnType, false);
   }
-  return llvm::FunctionType::get(returnType, args->types(module),
-                                 args->variadic());
+  auto argTypes = args->types(module);
+  if (!argTypes) {
+    return argTypes.takeError();
+  }
+  return llvm::FunctionType::get(returnType, *argTypes, args->variadic());
 }
 
 static llvm::Expected<llvm::FunctionType*>
 getFuncType(const llvm::Module* const module,
-            const TypeList* const returnTypeList,
-            const Args* const args = nullptr) {
-  auto returnType = Type::getReturnType(
-      module->getContext(),
-      returnTypeList ? std::optional{returnTypeList->codegen(module)}
-                     : std::nullopt,
-      {});
+            const TypeList* const returnTypeList, const Args* const args,
+            const mpc_state_t state) {
+  std::optional<typelist_t> typeList;
+  if (returnTypeList) {
+    auto list = returnTypeList->codegen(module);
+    if (!list) {
+      return list.takeError();
+    }
+    typeList = std::move(*list);
+  }
+  auto returnType = Type::getReturnType(module->getContext(), typeList, state);
   if (!returnType) {
     return returnType.takeError();
   }
@@ -153,11 +160,10 @@ public:
   llvm::Error codegen(llvm::Module* const module) const {
     const auto returns = returnTypeList_ ? returnTypeList_.get() : nullptr;
     const auto args = args_ ? args_.get() : nullptr;
-    auto type = getFuncType(module, returns, args);
+    auto type = getFuncType(module, returns, args, state_);
     if (!type) {
       return type.takeError();
     }
-
     const auto func = llvm::Function::Create(
         *type, llvm::Function::ExternalLinkage, name_, module);
     if (args_) {
@@ -176,22 +182,6 @@ public:
     llvm::IRBuilder<> builder{entry};
     if (auto err = body_->codegen(builder)) {
       return err;
-    }
-
-    // we delete trailing empty blocks // @todo: Run Pass?
-    if (func->size() > 1) {
-      for (auto b = ++func->begin(); b != func->end(); ++b) {
-        auto& block = *b;
-        if (block.empty()) {
-          if (auto pred = block.getSinglePredecessor()) {
-            pred->eraseFromParent();
-          }
-        }
-      }
-      // if (func->size() > 1 && func->back().empty()) {
-      //   func->back().eraseFromParent();
-      // }
-      builder.SetInsertPoint(&func->back());
     }
 
     if (func->back().empty() ||

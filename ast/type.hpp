@@ -21,8 +21,7 @@
 #include "arraytype.hpp"
 #include "fntype.hpp"
 #include "integral.hpp"
-#include <llvm/IR/ConstantRange.h>
-#include <sstream>
+#include <llvm/Support/raw_ostream.h>
 
 namespace whack::ast {
 
@@ -37,11 +36,12 @@ public:
       if (!ast->children_num) {
         return ast->contents;
       }
-      std::ostringstream os;
+      std::string ret;
+      llvm::raw_string_ostream os{ret};
       for (auto i = 0; i < ast->children_num; ++i) {
         os << getStr(ast->children[i]);
       }
-      return os.str();
+      return ret;
     };
     return getStr(ast_);
   }
@@ -51,7 +51,7 @@ public:
            std::string_view(ast_->children[0]->contents) == "mut";
   }
 
-  llvm::Type* codegen(const llvm::Module* const module) const {
+  llvm::Expected<llvm::Type*> codegen(const llvm::Module* const module) const {
     auto ref = ast_;
     if (this->isMutable()) {
       ref = ast_->children[1];
@@ -71,41 +71,47 @@ public:
     }
 
     if (tag == "ident") {
-      const auto& typeName = ref->contents;
-      if (auto type = BasicTypes[typeName]) {
-        return type;
-      }
-
-      if (auto type = module->getTypeByName(typeName)) {
-        return type;
-      }
-
-      if (auto type =
-              module->getTypeByName(format("interface::{}", typeName))) {
-        return type; // @todo
-      }
-
-      if (auto MD = module->getNamedMetadata("aliases")) {
-        for (unsigned i = 0; i < MD->getNumOperands(); ++i) {
-          const auto operand = MD->getOperand(i);
-          const auto name = reinterpret_cast<const llvm::MDString*>(
-                                operand->getOperand(0).get())
-                                ->getString();
-          if (name == typeName) {
-            return llvm::mdconst::dyn_extract<llvm::Constant>(
-                       operand->getOperand(1))
-                ->getType();
-          }
-        }
+      if (auto type = getFromTypeName(module, ref->contents)) {
+        return type.value();
       }
     }
 
     if (tag == "identifier") {
-      // @todo types from other module scopes
-      llvm_unreachable("not implemented");
+      // @todo types from other module scopes e.t.c...
+      warning("identifier type tag kind not implemented");
+    }
+    return error("type `{}` does not exist in scope at line {}", this->str(),
+                 ast_->state.row + 1);
+  }
+
+  static std::optional<llvm::Type*>
+  getFromTypeName(const llvm::Module* const module, llvm::StringRef typeName) {
+    if (auto type = BasicTypes[typeName]) {
+      return type;
     }
 
-    llvm_unreachable("invalid type tag kind!");
+    if (auto type = module->getTypeByName(typeName)) {
+      return type;
+    }
+
+    if (auto type =
+            module->getTypeByName(format("interface::{}", typeName.data()))) {
+      return type;
+    }
+
+    if (auto MD = module->getNamedMetadata("aliases")) {
+      for (unsigned i = 0; i < MD->getNumOperands(); ++i) {
+        const auto operand = MD->getOperand(i);
+        const auto name = reinterpret_cast<const llvm::MDString*>(
+                              operand->getOperand(0).get())
+                              ->getString();
+        if (name == typeName) {
+          return llvm::mdconst::extract<llvm::Constant>(operand->getOperand(1))
+              ->getType();
+        }
+      }
+    }
+    return std::nullopt;
   }
 
   inline static auto getBitSize(const llvm::Module* const module,
@@ -120,18 +126,14 @@ public:
            type->getStructElementType(1)->getArrayNumElements() == 0;
   }
 
-  // @todo
-  static std::pair<llvm::/*Struct*/ Type*, bool>
-  isStructKind(llvm::Type* const type) {
+  static std::pair<llvm::Type*, bool> isStructKind(llvm::Type* const type) {
     if (type->isStructTy()) {
       return {type, true};
     }
-    if (type->isPointerTy()) {
-      if (type->getPointerElementType()->isStructTy()) {
-        return {type->getPointerElementType(), true};
-      }
+    if (type->isPointerTy() && type->getPointerElementType()->isStructTy()) {
+      return {type->getPointerElementType(), true};
     }
-    return {nullptr, false};
+    return {type, false};
   }
 
   inline static bool isFunctionKind(const llvm::Type* const type) {
@@ -140,9 +142,13 @@ public:
             type->getPointerElementType()->isFunctionTy());
   }
 
-  static llvm::Type* getPointerType(const mpc_ast_t* const ast,
-                                    const llvm::Module* const module) {
-    auto type = getType(ast->children[0], module);
+  static llvm::Expected<llvm::Type*>
+  getPointerType(const mpc_ast_t* const ast, const llvm::Module* const module) {
+    auto tp = getType(ast->children[0], module);
+    if (!tp) {
+      return tp.takeError();
+    }
+    auto type = *tp;
     for (auto i = 1; i < ast->children_num; ++i) {
       type = type->getPointerTo(0);
     }
@@ -157,8 +163,9 @@ public:
     return ret;
   }
 
-  inline static llvm::Type* getReturnType(const llvm::Module* const module,
-                                          const std::unique_ptr<Type>& type) {
+  inline static llvm::Expected<llvm::Type*>
+  getReturnType(const llvm::Module* const module,
+                const std::unique_ptr<Type>& type) {
     return type ? type->codegen(module) : BasicTypes["void"];
   }
 
@@ -185,9 +192,13 @@ private:
   const mpc_ast_t* const ast_;
 };
 
-static llvm::Type* getType(const mpc_ast_t* const ast,
-                           const llvm::Module* const module) {
-  const auto type = Type{ast}.codegen(module);
+static llvm::Expected<llvm::Type*> getType(const mpc_ast_t* const ast,
+                                           const llvm::Module* const module) {
+  auto tp = Type{ast}.codegen(module);
+  if (!tp) {
+    return tp.takeError();
+  }
+  const auto type = *tp;
   if (Type::getUnderlyingType(type)->isFunctionTy()) {
     return type->getPointerTo(0);
   }

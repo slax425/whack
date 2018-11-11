@@ -20,8 +20,9 @@
 
 #include <llvm-c/Core.h>
 #include <llvm/ADT/StringMap.h>
-#include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Type.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/Support/raw_ostream.h>
 
 namespace whack {
 
@@ -31,16 +32,80 @@ inline static /*const*/ llvm::StringMap<llvm::Type*> BasicTypes{
     {"void", CAST_TYPE(LLVMVoidType())},
     {"bool", CAST_TYPE(LLVMInt1Type())},
     {"char", CAST_TYPE(LLVMInt8Type())},
+    {"short", CAST_TYPE(LLVMInt16Type())},
     {"int", CAST_TYPE(LLVMInt32Type())},
     {"int64", CAST_TYPE(LLVMInt64Type())},
+    {"int128", CAST_TYPE(LLVMInt128Type())},
     {"half", CAST_TYPE(LLVMHalfType())},
     {"double", CAST_TYPE(LLVMDoubleType())},
     {"float", CAST_TYPE(LLVMFloatType())},
-    {"auto", llvm::cast<llvm::Type>(
-                 llvm::StructType::create(*reinterpret_cast<llvm::LLVMContext*>(
-                     LLVMGetGlobalContext())))}}; // placeholder
+    {"auto", CAST_TYPE(LLVMStructCreateNamed(LLVMGetGlobalContext(),
+                                             "auto"))}}; // placeholder
 
 #undef CAST_TYPE
+
+// @todo References?
+static auto getTypeName(llvm::Type* type) {
+  size_t numPointers = 0;
+  while (type->isPointerTy()) {
+    ++numPointers;
+    type = type->getPointerElementType();
+  }
+  std::string typeName;
+  llvm::raw_string_ostream os{typeName};
+  if (!type->isPointerTy()) {
+    // @todo Signed integers, enums, data classes, functions?
+    if (type->isIntegerTy()) {
+      switch (type->getPrimitiveSizeInBits()) {
+      case 1:
+        os << "bool";
+        break;
+      case 8:
+        os << "char";
+        break;
+      case 16:
+        os << "short";
+        break;
+      case 32:
+        os << "int";
+        break;
+      case 64:
+        os << "int64";
+        break;
+      case 128:
+        os << "int128";
+        break;
+      }
+    } else if (type->isFloatingPointTy()) {
+      switch (type->getPrimitiveSizeInBits()) {
+      case 16:
+        os << "half";
+        break;
+      case 32:
+        os << "float";
+        break;
+      case 64:
+        os << "double";
+        break;
+      }
+    } else if (type->isStructTy()) {
+      const auto name = type->getStructName();
+      if (name.startswith("interface::")) {
+        constexpr static auto nameOffset = std::strlen("interface::");
+        os << name.substr(nameOffset);
+      } else {
+        os << name;
+      }
+    } else {
+      // @todo Do/Should we even get here?
+      warning("unhandled type kind in getTypeName");
+    }
+  }
+  while (numPointers--) {
+    os << '*';
+  }
+  return typeName;
+}
 
 } // end namespace whack
 

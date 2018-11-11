@@ -12,7 +12,7 @@ ident   : /[a-zA-Z_][a-zA-Z0-9_]*/ ;
 
 identlist : <ident> (',' <ident>)* ;
 
-overloadid : <ident> ("::" <ident>)* "::" "operator" (<type> | <overloadableops>) ;
+overloadid : (<scoperes> | <ident>) "::" <structopname> ;
 
 scoperes : <ident> ("::" <ident>)+ ;
 
@@ -34,10 +34,9 @@ callable : <closure> | <overloadid> | <scoperes> | <variable> ;
 
 funccall : ("await" | "async")? <callable> ("->" <callable>)* ('(' <exprlist>? ')')+ ;
 
-capture : <ident> ('&' | ('=' <expression>))? ;
+capture : '&' | '=' | (<ident> ('&' | ('=' <expression>))?) ;
 
-closure : "func" ('[' ('&' | '=' | (<capture> (',' <capture>)*))? ']')?
-              '(' <args>? ')' <typelist>? <body> ;
+closure : "func" ('[' (<capture> (',' <capture>)*)? ']')? '(' <args>? ')' <typelist>? <body> ;
 
 initlist : '{' <exprlist>? '}' ;
 
@@ -115,7 +114,7 @@ postop : <variable> ("--" | "++") ;
 
 assign : <variable> (',' <variable>)* '=' <exprlist> ';' ;
 
-letbind : "let" <identifier> '(' <identlist> ')' '=' <ident> ;
+letbind : "let" (<scoperes> | <ident>) '(' <identlist> ')' '=' <ident> ;
 
 ifstmt      : "if"  (
                       (
@@ -128,14 +127,14 @@ ifstmt      : "if"  (
 
 forinexpr : "for" <identlist> "in" <range> ("if" <condition>)? ;
 
-forincrexpr : "for" (<letexpr> | ';') <comparison> ';' (<preop> | <postop>)
-                  (',' (<preop> | <postop>))* ;
+forincrexpr : "for" (<letexpr> | ';') <comparison> ';' (<preop> | <postop> | <assign>)
+                  (',' (<preop> | <postop> | <assign>))* ;
 
-forexpr : <forinexpr> | <forincrexpr>;
+forexpr : <forinexpr> | <forincrexpr> ;
 
-forstmt : <forexpr> <stmt>;
+forstmt : <forexpr> <stmt> ;
 
-whilestmt : "while" <condition> <stmt>;
+whilestmt : "while" <condition> <stmt> ;
 
 outstream : <variable> ("<<" <expression>)+ ;
 
@@ -143,19 +142,19 @@ instream : <variable> (">>" <expression>)+ ;
 
 opeq : <variable> ('&' | '|' | '+' | '-' | '^' | '%' | '/' | '*' | ">>" | "<<") '=' <expression> ';' ;
 
-declassign : <typeident> <initializer> ? (',' <ident> <initializer>?)* ';';
+declassign : <typeident> <initializer> ? (',' <ident> <initializer>?)* ';' ;
 
-returnstmt : "return" <exprlist>? ';';
+returnstmt : "return" <exprlist>? ';' ;
 
-coreturnstmt : "co_return" <exprlist>? ';';
+coreturnstmt : "co_return" <exprlist>? ';' ;
 
-deletestmt : "delete" <exprlist> ';';
+deletestmt : "delete" <exprlist> ';' ;
 
-yieldstmt : "yield" <exprlist>? ';';
+yieldstmt : "yield" <exprlist>? ';' ;
 
-breakstmt : "break" ';';
+breakstmt : "break" ';' ;
 
-continuestmt : "continue" ';';
+continuestmt : "continue" ';' ;
 
 deferstmt : "defer" <stmt> ;
 
@@ -189,7 +188,10 @@ chantype    : "chan" '<' <typelist> '>' ;
 
 atomictype  : "atomic" '<' <type> '>' ;
 
+exprtype    : "type" '(' <expression> ')' ;
+
 basictypes  : <fntype>
+            | <exprtype>
             | <chantype>
             | <atomictype>
             | <arraytype>
@@ -242,9 +244,10 @@ structure   : "type" <ident> <structdef> ;
 overloadableops : "<<" | ">>" | "<=>" | <comparators> | "-=" | "+="
                 | '/' | '*' | "--" | '-' | "++" | '+' | "()" | "[]" ;
 
+structopname : "operator" (<type> | <overloadableops>) ;
+
 structop    : "func" '(' "mut"? <ident> ')'
-                 "operator"(<type> | <overloadableops>)
-                   '(' (<args> | <typelist>)? ')' <type>?
+                 <structopname> '(' (<args> | <typelist>)? ')' <type>?
                  (<body> | ('=' "default" ';')) ;
 
 structfunc  : "func" '(' "mut"? <ident> ')'
@@ -252,7 +255,7 @@ structfunc  : "func" '(' "mut"? <ident> ')'
                 (<body> | ('=' "default" ';')) ;
 
 interfacedef   : "interface" (':' (<scoperes> | <ident>) (',' (<scoperes> | <ident>))*)? '{'
-                   (<fntype> <ident> ';')+
+                   (<fntype> (<structopname> | <ident>) ';')+
                  '}' ;
 
 interface   : "type" <ident> <interfacedef> ;
@@ -261,7 +264,7 @@ externfunc  : "extern" "func" <ident> '(' <typelist>? ')' <typelist>? ';' ;
 
 exports     : "export" <identlist> ';' ;
 
-moduleuse   : "use" <identifier> ('!'? '{' <identlist> '}')? ("as" <ident>)? ';' ;
+moduleuse   : "use" (<scoperes> | <ident>) ('!'? '{' <identlist> '}')? ("as" <ident>)? ';' ;
 
 moduledecl  : "module" <ident> ;
 

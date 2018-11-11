@@ -22,6 +22,7 @@
 #include "../format.hpp"
 #include "../mpc/mpc.h"
 #include "../types.hpp"
+#include <iostream>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Support/Casting.h>
 
@@ -36,31 +37,25 @@ inline static bool isReserved(llvm::StringRef name) {
 }
 
 static auto getTags(const mpc_ast_t* const ast) {
-  small_vector<std::string> tags;
-  std::string tag;
-  for (const auto chr : std::string_view(ast->tag)) {
-    if (chr == '|') {
-      tags.push_back(tag);
-      tag.clear();
-    } else {
-      tag.push_back(chr);
-    }
-  }
-  tags.emplace_back(std::move(tag));
-  return tags;
+  small_vector<llvm::StringRef> rules;
+  llvm::StringRef{ast->tag}.split(rules, '|');
+  return rules;
 }
 
 inline static auto getOutermostAstTag(const mpc_ast_t* const ast) {
-  return std::move(getTags(ast).front());
+  return llvm::StringRef{ast->tag}.take_until(
+      [](const char c) { return c == '|'; });
 }
 
 static auto getInnermostAstTag(const mpc_ast_t* const ast) {
-  const auto tags = getTags(ast);
-  const auto& back = tags.back();
-  if (back == "regex" || back == ">") {
-    return tags[tags.size() - 2];
+  llvm::StringRef tag{ast->tag};
+  tag.consume_back(">");
+  tag.consume_back("regex");
+  tag.consume_back("|");
+  if (const auto i = tag.find_last_of('|')) {
+    return tag.drop_front(i + 1);
   }
-  return std::move(back);
+  return tag;
 }
 
 using ident_list_t = small_vector<llvm::StringRef>;
@@ -199,12 +194,13 @@ public:
 
 static std::unique_ptr<Stmt> getStmt(const mpc_ast_t* const);
 
-static llvm::Type* getType(const mpc_ast_t* const, const llvm::Module* const);
+static llvm::Expected<llvm::Type*> getType(const mpc_ast_t* const,
+                                           const llvm::Module* const);
 
 using typelist_t = std::pair<small_vector<llvm::Type*>, bool>;
 
-typelist_t static getTypeList(const mpc_ast_t* const,
-                              const llvm::Module* const);
+static llvm::Expected<typelist_t> getTypeList(const mpc_ast_t* const,
+                                              const llvm::Module* const);
 
 static llvm::Function* changeFuncReturnType(llvm::Function* const,
                                             llvm::Type* const);

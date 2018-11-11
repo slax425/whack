@@ -26,7 +26,7 @@
 namespace whack::ast {
 
 class StructOp final : public AST {
-  using func_name_t = std::variant<std::string, Type>;
+  using func_name_t = std::variant<llvm::StringRef, Type>;
   using args_types_t = std::variant<Args, TypeList>;
 
 public:
@@ -39,11 +39,11 @@ public:
 
     structName_ = ast->children[idx++]->contents;
     ++idx;
-    auto ref = ast->children[++idx];
+    auto ref = ast->children[idx]->children[1];
     if (getOutermostAstTag(ref) == "type") {
       funcName_ = std::make_unique<func_name_t>(Type{ref});
     } else {
-      funcName_ = std::make_unique<func_name_t>(std::string{ref->contents});
+      funcName_ = std::make_unique<func_name_t>(llvm::StringRef{ref->contents});
     }
 
     ++idx;
@@ -72,22 +72,34 @@ public:
     if (!structure) {
       return error("cannot find struct `{}` for function "
                    "at line {}",
-                   structName_, state_.row + 1);
+                   structName_.data(), state_.row + 1);
     }
 
-    // @todo Proper mangling for name
     std::string name;
     if (funcName_->index() == 0) {
-      name = format("operator{}", std::get<std::string>(*funcName_));
+      name =
+          format("operator {}", std::get<llvm::StringRef>(*funcName_).data());
     } else {
-      const auto operatorName = std::get<Type>(*funcName_).str();
-      if (operatorName == "auto") {
+      const auto& t = std::get<Type>(*funcName_);
+      auto tp = t.codegen(module);
+      if (!tp) {
+        return tp.takeError();
+      }
+      const auto type = *tp;
+      if (type == BasicTypes["auto"]) {
         return error("function of struct `{}` cannot "
                      "define an operator for deduced type auto "
                      "at line {}",
-                     structName_, state_.row + 1);
+                     structName_.data(), state_.row + 1);
       }
-      name = format("operator {}", operatorName);
+      name = format("operator {}", getTypeName(type));
+    }
+
+    const auto funcName = format("struct::{}::{}", structName_.data(), name);
+    if (module->getFunction(funcName)) {
+      return error("function `{}` already exists for struct `{}` "
+                   "at line {}",
+                   name, structName_.data(), state_.row + 1);
     }
 
     small_vector<llvm::Type*> paramTypes;
@@ -95,21 +107,31 @@ public:
     if (argsOrTypeList_) {
       if (argsOrTypeList_->index() == 0) { // <args>
         const auto args = std::get<Args>(*argsOrTypeList_);
-        paramTypes = args.types(module);
+        auto types = args.types(module);
+        if (!types) {
+          return types.takeError();
+        }
+        paramTypes = std::move(*types);
         paramTypes.insert(paramTypes.begin(), structure->getPointerTo(0));
         variadic = args.variadic();
       } else { // <typelist>
-        std::tie(paramTypes, variadic) =
-            std::get<TypeList>(*argsOrTypeList_).codegen(module);
+        auto typeList = std::get<TypeList>(*argsOrTypeList_).codegen(module);
+        if (!typeList) {
+          return typeList.takeError();
+        }
+        std::tie(paramTypes, variadic) = std::move(*typeList);
         paramTypes.insert(paramTypes.begin(), structure->getPointerTo(0));
       }
     } else {
       paramTypes = {structure->getPointerTo(0)};
     }
 
-    const auto type = llvm::FunctionType::get(
-        Type::getReturnType(module, returnType_), paramTypes, variadic);
-    const auto funcName = format("struct::{}::{}", structName_, name);
+    auto returnType = Type::getReturnType(module, returnType_);
+    if (!returnType) {
+      return returnType.takeError();
+    }
+    const auto type =
+        llvm::FunctionType::get(*returnType, paramTypes, variadic);
     auto func = llvm::Function::Create(type, llvm::Function::ExternalLinkage,
                                        funcName, module);
     func->arg_begin()[0].setName("this");
@@ -132,7 +154,9 @@ public:
 
     if (!body_) {
       // @todo Default the operator; if applicable??
-      llvm_unreachable("defauled struct operators not implemented");
+      return error("defaulted struct operators not implemented "
+                   "at line {}",
+                   state_.row + 1);
     }
 
     if (auto err = body_->codegen(builder)) {
@@ -144,7 +168,7 @@ public:
       if (func->getReturnType() != BasicTypes["void"]) {
         return error("expected function `{}` for struct `{}` "
                      " to have a return value at line {}",
-                     name, structName_, state_.row + 1);
+                     name, structName_.data(), state_.row + 1);
       } else {
         builder.CreateRetVoid();
       }
@@ -169,7 +193,7 @@ public:
       if (*deduced != func->getReturnType()) {
         return error("function `{}` for struct `{}` returns an invalid type "
                      "at line {}",
-                     name, structName_, state_.row + 1);
+                     name, structName_.data(), state_.row + 1);
       }
     }
     return llvm::Error::success();
@@ -178,7 +202,7 @@ public:
 private:
   const mpc_state_t state_;
   bool mutatesMembers_{false};
-  std::string structName_;
+  llvm::StringRef structName_;
   std::unique_ptr<func_name_t> funcName_;
   std::unique_ptr<args_types_t> argsOrTypeList_;
   std::unique_ptr<Type> returnType_;

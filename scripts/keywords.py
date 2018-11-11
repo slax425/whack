@@ -19,8 +19,8 @@ import os, re
 from utils import read, write
 
 INTERNAL_DATA_TYPES = [
-	"bool", "int", "uint", "int64", "uint64", "char",
-	"void", "half", "float", "double", "auto"
+	"bool", "int", "uint", "int64", "short", "uint64",
+	"char", "int128", "void", "half", "float", "double", "auto"
 ]
 
 INTERNAL_CONSTANTS = [

@@ -1,23 +1,17 @@
 **TODO**
 ========
 - [ ] Fix support for dynamic arrays (also `append` "intrinsic" function)
-- [x] Support explicit closure variable capture/init (codegen)
-- [ ] Revisit Reference semantics
+- [ ] Revisit Pointer, Reference semantics
 - [ ] Do basic lifetime checks to avoid dangling pointers/invalid references
-- [ ] Closure capture nothing ([]) or everything by value (default) [=] / by reference [&] -> (codegen)
 - [ ] Fix boolean expressions (mainly a grammar issue)
 - [ ] Support implicit type conversions for structs via operator overloads
 - [ ] Support binary, octal & hexadecimal numbers
-- [x] Support explicit partial function application
-- [x] Support partial function application for up to N - 1 of N args
 - [ ] Consistent Name Mangling (currently ad-hoc) -> support `export` construct
 - [ ] Distinguish pre/post increment/decrement operator functions (via mangled names?)
-- [x] Interfaces
-- [x] Interface inheritance
 - [ ] Refactor/Redo types/type lists
 - [ ] Comments
-- [ ] Lift the `type(<expression>)` construct to be a type
-- [x] xxxxxx Refactor `fntype` grammar to accepts `args` (to support naming arg types) xxxxx - Use comments!
+- [ ] Support type construction from `type(<expression>)`
+- [ ] Make "this" optionally implicit in struct functions (if variable name search fails in struct functions, check if they belong to "this")
 - [ ] Template to generate syntax file for sublime text from grammar
 - [ ] Proper structured bindings for pattern matching
 - [ ] Guarantee copy elision
@@ -26,4 +20,5 @@
 - [ ] Support message passing channels & constructs
 - [ ] Support atomic types
 - [ ] Extensive testing
+- [ ] Formalize the memory model in use
 - [ ] Other random refactoring/fixes/improvements...

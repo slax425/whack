@@ -22,6 +22,7 @@
 #include "deferstmt.hpp"
 #include "ident.hpp"
 #include "tags.hpp"
+#include <llvm/IR/CFG.h>
 
 namespace whack::ast {
 
@@ -65,24 +66,8 @@ public:
     }
 
     for (const auto& [block, defer] : deferrals_) {
-      if (block == current) {
-        builder.SetInsertPoint(block);
-        if (auto err = defer->runScopeExit(builder)) {
-          return err;
-        }
-      } else {
-        for (auto curr = block->getIterator(); curr != ++current->getIterator();
-             ++curr) {
-          auto b = &*curr;
-          if (llvm::isa<llvm::ReturnInst>(b->back())) {
-            builder.SetInsertPoint(b);
-            if (auto err = defer->runScopeExit(builder)) {
-              return err;
-            }
-          } else {
-            llvm_unreachable("invalid defer kind?!"); // @todo
-          }
-        }
+      if (auto err = applyDefer(builder, current, block, defer)) {
+        return err;
       }
     }
 
@@ -104,6 +89,29 @@ private:
   mutable llvm::BasicBlock* end_;
   using deferral_info_t = std::pair<llvm::BasicBlock*, Stmt*>;
   mutable std::vector<deferral_info_t> deferrals_;
+
+  static llvm::Error applyDefer(llvm::IRBuilder<>& builder,
+                                llvm::BasicBlock* const current,
+                                llvm::BasicBlock* const block,
+                                const Stmt* const defer) {
+    if (block == current) {
+      builder.SetInsertPoint(block);
+      return defer->runScopeExit(builder);
+    }
+    for (const auto successor : llvm::successors(block)) {
+      if (successor == current || llvm::succ_empty(successor)) {
+        builder.SetInsertPoint(successor);
+        if (auto err = defer->runScopeExit(builder)) {
+          return err;
+        }
+      } else {
+        if (auto err = applyDefer(builder, current, successor, defer)) {
+          return err;
+        }
+      }
+    }
+    return llvm::Error::success();
+  }
 
   llvm::Error handleTags(llvm::IRBuilder<>& builder) const {
     static llvm::StringMap<llvm::Attribute::AttrKind> InternalTags{

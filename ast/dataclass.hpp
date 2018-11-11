@@ -65,7 +65,11 @@ public:
       // @todo Proper mangling
       const auto className = format("class::{}::{}", class_, name);
       if (typeList) {
-        auto [types, variadic] = typeList.value().codegen(module);
+        auto t = typeList.value().codegen(module);
+        if (!t) {
+          return t.takeError();
+        }
+        auto [types, variadic] = std::move(*t);
         if (variadic) {
           return error("cannot use variadic type in typelist for "
                        "constructor `{}` in data class `{}` "

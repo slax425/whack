@@ -55,15 +55,25 @@ private:
 
   llvm::Expected<llvm::FunctionType*>
   type(const llvm::Module* const module) const {
-    auto returnType = Type::getReturnType(
-        module->getContext(),
-        returns_ ? std::optional{returns_->codegen(module)} : std::nullopt,
-        state_);
+    std::optional<typelist_t> retTypes{std::nullopt};
+    if (returns_) {
+      auto types = returns_->codegen(module);
+      if (!types) {
+        return types.takeError();
+      }
+      retTypes = std::move(*types);
+    }
+    auto returnType =
+        Type::getReturnType(module->getContext(), retTypes, state_);
     if (!returnType) {
       return returnType.takeError();
     }
     if (params_) {
-      const auto [types, variadic] = params_->codegen(module);
+      auto params = params_->codegen(module);
+      if (!params) {
+        return params.takeError();
+      }
+      const auto& [types, variadic] = *params;
       return llvm::FunctionType::get(*returnType, types, variadic);
     }
     return llvm::FunctionType::get(*returnType, false);

@@ -28,7 +28,6 @@ public:
       : Stmt(kDelete), state_{ast->state}, exprList_{
                                                getExprList(ast->children[1])} {}
 
-  // @todo
   llvm::Error codegen(llvm::IRBuilder<>& builder) const final {
     const auto block = builder.GetInsertBlock();
     for (const auto& expr : exprList_) {
@@ -36,13 +35,12 @@ public:
       if (!e) {
         return e.takeError();
       }
-      const auto source = *e;
+      auto source = *e;
       if (!source->getType()->isPointerTy()) {
         return error("invalid type for operator delete at line {}",
                      state_.row + 1);
       }
-      // @todo Refactor
-      if (llvm::isa<llvm::ReturnInst>(block->back())) {
+      if (!block->empty() && block->back().isTerminator()) {
         (void)llvm::CallInst::CreateFree(source, &block->back());
       } else {
         builder.Insert(llvm::CallInst::CreateFree(source, block));

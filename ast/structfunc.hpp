@@ -72,18 +72,27 @@ public:
                    funcName_, structName_, state_.row + 1);
     }
 
-    auto returnType = Type::getReturnType(
-        module->getContext(),
-        returns_ ? std::optional{returns_->codegen(module)} : std::nullopt,
-        state_);
+    std::optional<typelist_t> retTypeList{std::nullopt};
+    if (returns_) {
+      auto type = returns_->codegen(module);
+      if (!type) {
+        return type.takeError();
+      }
+      retTypeList = std::move(*type);
+    }
 
+    auto returnType =
+        Type::getReturnType(module->getContext(), retTypeList, state_);
     if (!returnType) {
       return returnType.takeError();
     }
-
     llvm::FunctionType* type;
     if (args_) {
-      auto types = args_->types(module);
+      auto tps = args_->types(module);
+      if (!tps) {
+        return tps.takeError();
+      }
+      auto& types = *tps;
       types.insert(types.begin(), structure->getPointerTo(0));
       type = llvm::FunctionType::get(*returnType, types, args_->variadic());
     } else {

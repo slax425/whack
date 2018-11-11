@@ -41,13 +41,39 @@ func (Rest) Jah() char* {
 	return "Rest";
 }
 
+using ptr = char*;
+
+func (Rest) operator ptr() auto @inline {
+	return "Rest";
+}
+
+using ptr2 = ptr;
+
 func ttt() {
 	Rest r;
+	let q = cast<char*>(r);
+	let w = cast<ptr>(r);
+	let y = cast<ptr2>(r);
+	let o = cast<Ra>(r);
 	_ = TestB(r);
 }
 
 func (Rest) ama(int b) int @inline {
 	t2();
+	if true {
+		if true {
+			if false {
+				let mu = new Rest;
+				defer delete mu;
+			}
+			let y = new Rest;
+			defer delete y;
+			Rest te;
+			if false {
+				return 0;
+			}
+		}
+	}
 	return b;
 }
 
@@ -58,9 +84,10 @@ func testPartialApply(char* one, char* two) {
 
 func closureExample1(bool p) auto {
 	return func(bool a) auto {
-		return func(int x) func(() -> bool) @mustinline {
-			return func() bool {
-				return x < 10;
+		return func[=](int x) func(() -> bool) @mustinline {
+			let tt = a ? 0 : 1;
+			return func[x, tt]() bool {
+				return x + tt < 10;
 			};
 		};
 	};
@@ -105,5 +132,6 @@ func main(int argc, char** argv) int {
 	apply("Bar!");
 	testDynamicMemoryAndClosures();
 	ttt();
+	r.ama(12);
 	return ret;
 }

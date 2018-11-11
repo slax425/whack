@@ -26,19 +26,23 @@ class FnType final : public AST {
 public:
   explicit constexpr FnType(const mpc_ast_t* const ast) noexcept : ast_{ast} {}
 
-  llvm::FunctionType* codegen(const llvm::Module* const module) const {
+  llvm::Expected<llvm::FunctionType*>
+  codegen(const llvm::Module* const module) const {
     if (ast_->children_num < 4) {
       return llvm::FunctionType::get(BasicTypes["void"], false);
     }
 
-    const auto getReturnType = [&]() -> llvm::Type* {
+    const auto getReturnType = [&]() -> llvm::Expected<llvm::Type*> {
       if (ast_->children_num > 4) {
-        const auto [returnTypes, variadic] =
-            getTypeList(ast_->children[4], module);
+        auto typeList = getTypeList(ast_->children[4], module);
+        if (!typeList) {
+          return typeList.takeError();
+        }
+        const auto& [returnTypes, variadic] = *typeList;
         if (variadic) {
-          warning("cannot use a variadic type as function "
-                  "return type at line {}",
-                  ast_->state.row + 1);
+          return error("cannot use a variadic type as function "
+                       "return type at line {}",
+                       ast_->state.row + 1);
         }
         if (returnTypes.size() > 1) {
           return llvm::StructType::get(module->getContext(), returnTypes);
@@ -48,12 +52,19 @@ public:
       return BasicTypes["void"];
     };
 
-    if (getOutermostAstTag(ast_->children[2]) == "typelist") {
-      const auto [paramTypes, variadic] =
-          getTypeList(ast_->children[2], module);
-      return llvm::FunctionType::get(getReturnType(), paramTypes, variadic);
+    auto returnType = getReturnType();
+    if (!returnType) {
+      return returnType.takeError();
     }
-    return llvm::FunctionType::get(getReturnType(), false);
+    if (getOutermostAstTag(ast_->children[2]) == "typelist") {
+      auto typeList = getTypeList(ast_->children[2], module);
+      if (!typeList) {
+        return typeList.takeError();
+      }
+      const auto& [paramTypes, variadic] = *typeList;
+      return llvm::FunctionType::get(*returnType, paramTypes, variadic);
+    }
+    return llvm::FunctionType::get(*returnType, false);
   }
 
 private:

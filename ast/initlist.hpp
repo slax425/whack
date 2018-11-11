@@ -36,7 +36,11 @@ public:
   llvm::Expected<llvm::Value*> codegen(llvm::IRBuilder<>& builder,
                                        llvm::Type* const type,
                                        const mpc_state_t state) const {
-    const auto [list, unique] = this->list(builder);
+    auto valueList = this->list(builder);
+    if (!valueList) {
+      return valueList.takeError();
+    }
+    const auto [list, unique] = std::move(*valueList);
     if (list.empty()) {
       return llvm::Constant::getNullValue(type);
     }
@@ -158,8 +162,8 @@ public:
 private:
   small_vector<expr_t> values_;
 
-  std::pair<small_vector<llvm::Constant*>, bool>
-  list(llvm::IRBuilder<>& builder) const {
+  using list_t = std::pair<small_vector<llvm::Constant*>, bool>;
+  llvm::Expected<list_t> list(llvm::IRBuilder<>& builder) const {
     small_vector<llvm::Constant*> values;
     llvm::Type* referenceType;
     bool unique = true;
@@ -167,16 +171,17 @@ private:
       // we always expect "concrete" values for this init list
       auto val = values_[i]->codegen(builder);
       if (!val) {
-        llvm_unreachable("TODO: handle error"); // @todo
+        return val.takeError();
       }
+      const auto value = *val;
       if (UNLIKELY(i == 0)) {
-        referenceType = (*val)->getType();
-      } else if ((*val)->getType() != referenceType) {
+        referenceType = value->getType();
+      } else if (value->getType() != referenceType) {
         unique = false;
       }
-      values.push_back(llvm::dyn_cast<llvm::Constant>(*val));
+      values.push_back(llvm::dyn_cast<llvm::Constant>(value));
     }
-    return {std::move(values), unique};
+    return list_t{std::move(values), unique};
   }
 };
 

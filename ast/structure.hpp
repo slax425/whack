@@ -55,10 +55,13 @@ public:
                 name_, state_.row + 1);
       }
       // @todo Use tags
-      const auto type = decl.type(module);
+      auto type = decl.type(module);
+      if (!type) {
+        return type.takeError();
+      }
       for (const auto& var : decl.variables()) {
         fieldNames.push_back(var);
-        fields.push_back(type);
+        fields.push_back(*type);
       }
     }
     addMetadata(module, name_, fieldNames);

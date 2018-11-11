@@ -27,35 +27,51 @@ public:
   explicit constexpr TypeList(const mpc_ast_t* const ast) noexcept
       : ast_{ast} {}
 
-  typelist_t codegen(const llvm::Module* const module) const {
+  llvm::Expected<typelist_t> codegen(const llvm::Module* const module) const {
     bool variadic = false;
     small_vector<llvm::Type*> types;
     const auto tag = getInnermostAstTag(ast_);
     if (tag == "variadictype") {
-      types.push_back(getType(ast_->children[0], module));
+      auto type = getType(ast_->children[0], module);
+      if (!type) {
+        return type.takeError();
+      }
+      types.push_back(*type);
       variadic = true;
     } else if (tag != "typelist" || !ast_->children_num) {
-      types = {getType(ast_, module)};
+      auto type = getType(ast_, module);
+      if (!type) {
+        return type.takeError();
+      }
+      types = {*type};
     } else {
       for (auto i = 0; i < ast_->children_num; i += 2) {
         const auto ref = ast_->children[i];
         if (getInnermostAstTag(ref) == "variadictype") {
-          types.push_back(getType(ref->children[0], module));
+          auto type = getType(ref->children[0], module);
+          if (!type) {
+            return type.takeError();
+          }
+          types.push_back(*type);
           variadic = true;
         } else {
-          types.push_back(getType(ref, module));
+          auto type = getType(ref, module);
+          if (!type) {
+            return type.takeError();
+          }
+          types.push_back(*type);
         }
       }
     }
-    return {std::move(types), variadic};
+    return typelist_t{std::move(types), variadic};
   }
 
 private:
   const mpc_ast_t* const ast_;
 };
 
-inline static typelist_t getTypeList(const mpc_ast_t* const ast,
-                                     const llvm::Module* const module) {
+inline static llvm::Expected<typelist_t>
+getTypeList(const mpc_ast_t* const ast, const llvm::Module* const module) {
   return TypeList{ast}.codegen(module);
 }
 

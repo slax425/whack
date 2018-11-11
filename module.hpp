@@ -211,13 +211,15 @@ private:
       std::visit(
           [&mod, &err](auto&& element) {
             if (auto e = element.codegen(mod)) {
+              if (err)
               err = llvm::joinErrors(std::move(err), std::move(e));
+            else err = std::move(e);
             }
           },
           elem);
-      if (err) { // we fail early for now @todo
-        return err;
-      }
+      // if (err) { // we fail early for now @todo
+      //   return err;
+      // }
     }
     if (err) {
       return err;

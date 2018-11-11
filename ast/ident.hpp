@@ -76,46 +76,43 @@ public:
 
   inline const auto& name() const { return name_; }
 
-  // @todo Check enumerations...
   static llvm::Error isUnique(const llvm::Module* const module,
-                              const std::string& name,
-                              const mpc_state_t state) {
+                              llvm::StringRef name, const mpc_state_t state) {
     const auto line = state.row + 1;
     if (module->getFunction(name)) {
       return error("identifier `{}` already exists as a function "
                    "at line {}",
-                   name, line);
+                   name.data(), line);
     }
 
     if (getMetadataOperand(*module, "structures", name)) {
       return error("identifier `{}` already exists as a structure "
                    "at line {}",
-                   name, line);
+                   name.data(), line);
     }
 
     if (getMetadataOperand(*module, "interfaces", name)) {
       return error("identifier `{}` already exists as an interface "
                    "at line {}",
-                   name, line);
+                   name.data(), line);
     }
 
     if (getMetadataOperand(*module, "classes", name)) {
       return error("identifier `{}` already exists as a data class "
                    "at line {}",
-                   name, line);
+                   name.data(), line);
     }
 
     if (getMetadataOperand(*module, "aliases", name)) {
       return error("identifier `{}` already exists as an alias "
                    "at line {}",
-                   name, line);
+                   name.data(), line);
     }
     return llvm::Error::success();
   }
 
   static llvm::Error isUnique(const llvm::IRBuilder<>& builder,
-                              const std::string& name,
-                              const mpc_state_t state) {
+                              llvm::StringRef name, const mpc_state_t state) {
     const auto line = state.row + 1;
     if (name == "_") {
       return error("identifier `{}` is reserved for discarded "
@@ -123,15 +120,15 @@ public:
                    line);
     }
 
-    if (isReserved(name.c_str())) {
-      return error("identifier `{}` is reserved at line {}", name, line);
+    if (isReserved(name)) {
+      return error("identifier `{}` is reserved at line {}", name.data(), line);
     }
 
     const auto func = builder.GetInsertBlock()->getParent();
     if (func->getValueSymbolTable()->lookup(name)) {
       return error("identifier `{}` already exists in function `{}` "
                    "at line {}",
-                   name, func->getName().str(), line);
+                   name.data(), func->getName().str(), line);
     }
 
     return isUnique(func->getParent(), name, state);

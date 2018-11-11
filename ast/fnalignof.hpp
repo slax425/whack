@@ -28,10 +28,12 @@ public:
   explicit FnAlignOf(const mpc_ast_t* const ast)
       : Factor(kFnAlignOf), type_{ast->children[2]} {}
 
-  inline llvm::Expected<llvm::Value*>
-  codegen(llvm::IRBuilder<>& builder) const final {
-    return llvm::ConstantExpr::getAlignOf(
-        type_.codegen(builder.GetInsertBlock()->getModule()));
+  llvm::Expected<llvm::Value*> codegen(llvm::IRBuilder<>& builder) const final {
+    auto type = type_.codegen(builder.GetInsertBlock()->getModule());
+    if (!type) {
+      return type.takeError();
+    }
+    return llvm::ConstantExpr::getAlignOf(*type);
   }
 
   inline static bool classof(const Factor* const factor) {

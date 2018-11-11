@@ -20,6 +20,7 @@
 
 #include "ast.hpp"
 #include "metadata.hpp"
+#include "type.hpp"
 #include <llvm/IR/ValueSymbolTable.h>
 
 namespace whack::ast {
@@ -52,7 +53,7 @@ public:
       if (const auto idx = getIndex(module, structName, member)) {
         extracted =
             builder.CreateStructGEP(type, extracted, idx.value(), member);
-        if (structName.startswith("interface::")) {
+        if (structName.startswith("interface::")) { // @todo Necessary??
           extracted = builder.CreateLoad(extracted);
         }
       } else if (const auto memFun = module.getFunction(

@@ -19,6 +19,7 @@
 #pragma once
 
 #include "ast.hpp"
+#include "interface.hpp"
 #include "type.hpp"
 
 namespace whack::ast {
@@ -36,10 +37,18 @@ public:
     if (!e) {
       return e.takeError();
     }
-    auto expr = *e;
+    const auto expr = *e;
     const auto typeFrom = expr->getType();
     const auto module = builder.GetInsertBlock()->getModule();
-    const auto typeTo = typeTo_.codegen(module);
+    auto tp = typeTo_.codegen(module);
+    if (!tp) {
+      return tp.takeError();
+    }
+    const auto typeTo = *tp;
+    if (!typeTo) {
+      return error("type `{}` does not exist in scope at line {}",
+                   typeTo_.str(), state_.row + 1);
+    }
     if (typeFrom->isIntegerTy()) {
       if (typeTo->isFloatingPointTy()) {
         return builder.CreateSIToFP(expr, typeTo);
@@ -48,19 +57,44 @@ public:
     } else if (typeFrom->isFloatingPointTy()) {
       if (typeTo->isIntegerTy()) {
         return builder.CreateFPToSI(expr, typeTo);
-      } else if (typeFrom->isDoubleTy() && typeTo->isFloatTy()) {
+      }
+      if (typeFrom->isDoubleTy() && typeTo->isFloatTy()) {
         return builder.CreateFPTrunc(expr, typeTo);
-      } else if (typeFrom->isFloatTy() && typeTo->isDoubleTy()) {
+      }
+      if (typeFrom->isFloatTy() && typeTo->isDoubleTy()) {
         return builder.CreateFPExt(expr, typeTo);
       }
       return expr;
     } else if (typeFrom->isPointerTy()) {
-      // @todo: Overloaded operators...
-      llvm_unreachable("TODO");
-    } else if (typeTo->isPointerTy()) {
-      // @todo
-      llvm_unreachable("TODO");
+      const auto [type, isStruct] = Type::isStructKind(typeFrom);
+      if (isStruct) {
+        const auto [to, toIsStruct] = Type::isStructKind(typeTo);
+        if (toIsStruct && to->getStructName().startswith("interface::")) {
+          auto impl = Interface::cast(builder, typeTo, expr, state_);
+          if (!impl) {
+            return impl.takeError();
+          }
+          return *impl;
+        } else {
+          const auto funcName =
+              format("struct::{}::operator {}", type->getStructName().data(),
+                     getTypeName(typeTo));
+          if (auto caster = module->getFunction(funcName)) {
+            // @todo Check arity?
+            return builder.CreateCall(caster, expr);
+          }
+        }
+      } else if (typeFrom->getPointerElementType() == BasicTypes["char"]) {
+        if (typeTo->isIntegerTy() || typeTo->isFloatingPointTy()) {
+          return error("parsing numbers from char* not implemented "
+                       "at line {}",
+                       state_.row + 1);
+        }
+        // assert(typeTo->isPointerTy());
+        return builder.CreateBitOrPointerCast(expr, typeTo);
+      }
     }
+    typeTo->dump();
     return error("invalid cast at line {}", state_.row + 1);
   }
 
@@ -70,7 +104,7 @@ public:
 
 private:
   const mpc_state_t state_;
-  Type typeTo_;
+  const Type typeTo_;
   std::unique_ptr<Expression> expr_;
 };
 

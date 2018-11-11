@@ -42,7 +42,7 @@ static const auto getAllMetadataOperands(const llvm::Module& module,
   return operands;
 }
 
-inline static const std::optional<llvm::MDNode*>
+static const std::optional<llvm::MDNode*>
 getMetadataOperand(const llvm::Module& module, llvm::StringRef metadata,
                    llvm::StringRef name) {
   const auto operands = getAllMetadataOperands(module, metadata, name);
@@ -52,16 +52,24 @@ getMetadataOperand(const llvm::Module& module, llvm::StringRef metadata,
   return operands.front();
 }
 
+template <size_t OperandDepth = 0>
 static const auto getMetadataParts(const llvm::Module& module,
                                    llvm::StringRef metadata) {
+  static_assert(OperandDepth < 2, "not implemented for OperandDepth > 1");
   small_vector<llvm::StringRef> parts;
   const auto MD = module.getNamedMetadata(metadata);
   if (!MD) {
     return parts;
   }
   for (unsigned i = 0; i < MD->getNumOperands(); ++i) {
-    parts.push_back(
-        reinterpret_cast<llvm::MDString*>(MD->getOperand(i))->getString());
+    if constexpr (OperandDepth == 0) {
+      parts.push_back(
+          reinterpret_cast<llvm::MDString*>(MD->getOperand(i))->getString());
+    } else if constexpr (OperandDepth == 1) {
+      parts.push_back(reinterpret_cast<llvm::MDString*>(
+                          MD->getOperand(i)->getOperand(0).get())
+                          ->getString());
+    }
   }
   return parts;
 }

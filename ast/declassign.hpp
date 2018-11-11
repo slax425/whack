@@ -31,12 +31,13 @@ public:
   explicit DeclAssign(const mpc_ast_t* const ast)
       : Stmt(kDeclAssign), state_{ast->state},
         type_{ast->children[0]->children[0]} {
+    // @todo StringRef
     std::string var{ast->children[0]->children[1]->contents};
     vars_.emplace_back(var);
     for (auto i = 1; i < ast->children_num - 1; ++i) {
       const auto& curr = ast->children[i];
       if (getOutermostAstTag(curr) == "initializer") {
-        initializers_.emplace_back(std::make_pair(var, Initializer{curr}));
+        initializers_.emplace_back(std::pair{var, Initializer{curr}});
       } else if (getInnermostAstTag(curr) == "ident") {
         var = curr->contents;
         vars_.emplace_back(var);
@@ -46,7 +47,11 @@ public:
 
   /// @brief To be used in functions/basic block scope only!
   llvm::Error codegen(llvm::IRBuilder<>& builder) const final {
-    const auto type = type_.codegen(builder.GetInsertBlock()->getModule());
+    auto tp = type_.codegen(builder.GetInsertBlock()->getModule());
+    if (!tp) {
+      return tp.takeError();
+    }
+    const auto type = *tp;
     for (const auto& var : vars_) {
       if (auto err = Ident::isUnique(builder, var, state_)) {
         return err;
@@ -110,8 +115,8 @@ public:
 
 private:
   const mpc_state_t state_;
-  Type type_;
-  std::vector<std::string> vars_;
+  const Type type_;
+  small_vector<std::string> vars_;
   std::vector<std::pair<std::string, Initializer>> initializers_;
 };
 

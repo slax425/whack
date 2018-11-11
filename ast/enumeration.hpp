@@ -40,8 +40,16 @@ public:
   }
 
   llvm::Error codegen(llvm::Module* const module) const {
-    const auto type =
-        underlyingType_ ? underlyingType_->codegen(module) : BasicTypes["int"];
+    llvm::Type* type;
+    if (underlyingType_) {
+      auto underlying = underlyingType_->codegen(module);
+      if (!underlying) {
+        return underlying.takeError();
+      }
+      type = *underlying;
+    } else {
+      type = BasicTypes["int"];
+    }
     if (!type->isIntegerTy()) {
       return error("cannot use a non-integral type for "
                    "enum values at line {}",
@@ -63,7 +71,7 @@ public:
       (void)llvm::GlobalVariable{*module, type, true, linkage, value, option};
     }
     // using EnumName = UnderlyingType;
-    if (auto err = Alias::add(module, name_, type)) {
+    if (auto err = Alias::add(module, name_, type, state_)) {
       return err;
     }
     return llvm::Error::success();

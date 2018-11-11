@@ -32,7 +32,11 @@ public:
 
   llvm::Expected<llvm::Value*> codegen(llvm::IRBuilder<>& builder) const final {
     const auto module = builder.GetInsertBlock()->getModule();
-    const auto type = type_.codegen(module);
+    auto tp = type_.codegen(module);
+    if (!tp) {
+      return tp.takeError();
+    }
+    const auto type = *tp;
     const auto init = init_.list();
     switch (init.index()) {
     case 0: // <initlist>

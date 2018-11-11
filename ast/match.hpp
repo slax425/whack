@@ -103,6 +103,9 @@ private:
       if (auto err = stmt->codegen(builder)) {
         return err;
       }
+      if (auto err = stmt->runScopeExit(builder)) {
+        return err;
+      }
       caseBlock = builder.GetInsertBlock();
       if (!caseBlock->back().isTerminator()) {
         builder.CreateBr(contBlock);
@@ -112,6 +115,9 @@ private:
     if (defaultStmt) {
       builder.SetInsertPoint(defaultBlock);
       if (auto err = defaultStmt->codegen(builder)) {
+        return err;
+      }
+      if (auto err = defaultStmt->runScopeExit(builder)) {
         return err;
       }
       defaultBlock = builder.GetInsertBlock();

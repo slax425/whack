@@ -43,16 +43,9 @@ public:
         inherits_.emplace_back(getIdentifier(inherit));
       }
     }
-    for (++idx; idx < ref->children_num - 1; idx += 2) {
-      Type type{ref->children[idx]};
-      if (getInnermostAstTag(ref->children[idx + 1]) == "ident") {
-        std::string name{ref->children[idx + 1]->contents};
-        functions_.emplace_back(
-            std::pair{std::move(type), std::optional{std::move(name)}});
-        ++idx;
-      } else {
-        functions_.emplace_back(std::pair{std::move(type), std::nullopt});
-      }
+    for (++idx; idx < ref->children_num - 1; idx += 3) {
+      functions_.emplace_back(std::pair{Type{ref->children[idx]},
+                                        ref->children[idx + 1]->contents});
     }
   }
 
@@ -61,7 +54,7 @@ public:
       return err;
     }
     small_vector<llvm::Type*> funcs;
-    small_vector<std::string> funcNames;
+    small_vector<llvm::StringRef> funcNames;
     small_vector<std::pair<llvm::MDNode*, uint64_t>> metadata;
     auto& ctx = module->getContext();
     llvm::MDBuilder MDBuilder{ctx};
@@ -91,18 +84,21 @@ public:
     }
 
     for (const auto& [type, name] : functions_) {
-      const auto fnType = type.codegen(module)->getPointerTo(0);
+      auto tp = type.codegen(module);
+      if (!tp) {
+        return tp.takeError();
+      }
+      const auto fnType = (*tp)->getPointerTo(0);
       const auto domain = reinterpret_cast<llvm::MDNode*>(
           MDBuilder.createConstant(llvm::Constant::getNullValue(fnType)));
-      const auto nm = name ? name.value() : std::to_string(funcs.size());
-      if (std::find(funcNames.begin(), funcNames.end(), nm) !=
+      if (std::find(funcNames.begin(), funcNames.end(), name) !=
           funcNames.end()) {
         return error("interface `{}` already declares function `{}` "
                      "at line {}",
-                     name_, nm, state_.row + 1);
+                     name_, name.str(), state_.row + 1);
       }
-      funcNames.push_back(nm);
-      const auto nameMD = MDBuilder.createAnonymousAliasScope(domain, nm);
+      funcNames.push_back(name);
+      const auto nameMD = MDBuilder.createAnonymousAliasScope(domain, name);
       metadata.emplace_back(std::pair{nameMD, funcs.size()});
       funcs.push_back(fnType);
     }
@@ -120,7 +116,7 @@ public:
   inline const auto& functions() const { return functions_; }
 
   using funcs_info_t =
-      std::pair<small_vector<llvm::Type*>, small_vector<std::string>>;
+      std::pair<small_vector<llvm::Type*>, small_vector<llvm::StringRef>>;
 
   inline static llvm::Expected<funcs_info_t>
   getFuncsInfo(const llvm::Module* const module, llvm::Type* const interface,
@@ -132,18 +128,18 @@ public:
   getFuncsInfo(const llvm::Module* const module, llvm::StringRef interfaceName,
                const mpc_state_t state) {
     small_vector<llvm::Type*> funcs;
-    small_vector<std::string> funcNames;
+    small_vector<llvm::StringRef> funcNames;
     if (auto MD = getMetadataOperand(*module, "interfaces", interfaceName)) {
       for (unsigned i = 1; i < MD.value()->getNumOperands(); i += 2) {
-        const auto interfaceMD =
+        const auto funcMD =
             reinterpret_cast<llvm::MDNode*>(MD.value()->getOperand(i).get());
-        const auto func = interfaceMD->getOperand(1).get();
+        const auto func = funcMD->getOperand(1).get();
         funcs.push_back(
             llvm::mdconst::extract<llvm::Constant>(func)->getType());
         const auto funcName =
-            reinterpret_cast<llvm::MDString*>(interfaceMD->getOperand(2).get())
+            reinterpret_cast<llvm::MDString*>(funcMD->getOperand(2).get())
                 ->getString();
-        funcNames.emplace_back(funcName.str());
+        funcNames.push_back(funcName);
       }
     } else {
       return error("interface `{}` does not exist at line {}",
@@ -169,12 +165,11 @@ public:
     const auto& [funcs, funcNames] = *funcsInfo;
     small_vector<llvm::Function*> funcsImpl;
     for (size_t i = 0; i < funcs.size(); ++i) {
-      const auto funcType = funcs[i];
-      const auto& funcName = funcNames[i];
+      const auto funcName = funcNames[i].str();
       if (auto structFunc = module->getFunction(
               format("struct::{}::{}", structName, funcName))) {
         const auto func = StructMember::bindThis(builder, structFunc, value);
-        if (func->getType() != funcType) {
+        if (func->getType() != funcs[i]) {
           return error("struct `{}` does not implement interface `{}` "
                        "(type mismatch for function `{}`) at line {}",
                        structName, getName(interface).str(), funcName,
@@ -191,6 +186,8 @@ public:
     return std::move(funcsImpl);
   }
 
+  /// @brief Casts a struct pointer into an object implementing an interface
+  /// checking for a valid implementation
   static llvm::Expected<llvm::Value*> cast(llvm::IRBuilder<>& builder,
                                            llvm::Type* const interface,
                                            llvm::Value* const value,
@@ -215,8 +212,7 @@ private:
   const mpc_state_t state_;
   const std::string name_;
   std::vector<identifier_t> inherits_;
-  using name_t = std::optional<std::string>;
-  std::vector<std::pair<Type, name_t>> functions_;
+  std::vector<std::pair<Type, llvm::StringRef>> functions_;
 
   inline static llvm::StringRef getName(llvm::Type* const interface) {
     constexpr static auto nameOffset = std::strlen("interface::");

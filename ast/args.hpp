@@ -8,7 +8,7 @@
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
+ * distributed under 73the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
@@ -66,10 +66,15 @@ public:
 
   inline const auto& args() const noexcept { return args_; }
 
-  const auto types(const llvm::Module* const module) const {
+  const llvm::Expected<small_vector<llvm::Type*>>
+  types(const llvm::Module* const module) const {
     small_vector<llvm::Type*> ret;
     for (const auto& arg : args_) {
-      auto type = arg.type.codegen(module);
+      auto tp = arg.type.codegen(module);
+      if (!tp) {
+        return tp.takeError();
+      }
+      auto type = *tp;
       if (Type::getUnderlyingType(type)->isFunctionTy() ||
           (type->isStructTy() &&
            type->getStructName().startswith("interface::"))) {

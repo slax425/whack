@@ -28,17 +28,23 @@ public:
   explicit constexpr ArrayType(const mpc_ast_t* const ast) noexcept
       : ast_{ast} {}
 
-  llvm::Type* codegen(const llvm::Module* const module) const {
+  llvm::Expected<llvm::Type*> codegen(const llvm::Module* const module) const {
     // Fixed-size array
     if (ast_->children_num == 4) {
       const Integral len{ast_->children[1]};
-      const auto type = getType(ast_->children[3], module);
+      auto type = getType(ast_->children[3], module);
+      if (!type) {
+        return type.takeError();
+      }
       return reinterpret_cast<llvm::Type*>(
-          llvm::ArrayType::get(type, len.value()));
+          llvm::ArrayType::get(*type, len.value()));
     }
     // Variable-length array
-    return getVarLenType(module->getContext(),
-                         getType(ast_->children[2], module));
+    auto type = getType(ast_->children[2], module);
+    if (!type) {
+      return type.takeError();
+    }
+    return getVarLenType(module->getContext(), *type);
   }
 
   inline static llvm::Type* getVarLenType(llvm::LLVMContext& ctx,

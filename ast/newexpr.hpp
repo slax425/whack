@@ -40,10 +40,17 @@ public:
         return expr.takeError();
       }
       const auto mem = *expr;
-      const auto type = Type{ast_->children[4]}.codegen(module);
-      return llvm::dyn_cast<llvm::Value>(builder.CreateBitCast(mem, type));
+      auto type = Type{ast_->children[4]}.codegen(module);
+      if (!type) {
+        return type.takeError();
+      }
+      return llvm::dyn_cast<llvm::Value>(builder.CreateBitCast(mem, *type));
     }
-    const auto type = Type{ast_->children[1]}.codegen(module);
+    auto tp = Type{ast_->children[1]}.codegen(module);
+    if (!tp) {
+      return tp.takeError();
+    }
+    const auto type = *tp;
     const auto allocSize =
         type->isArrayTy() ? Integral{ast_->children[1]->children[1]}.value()
                           : 1;
@@ -53,7 +60,7 @@ public:
             llvm::ConstantInt::get(BasicTypes["int"], allocSize)),
         nullptr, nullptr, "");
     builder.Insert(call);
-    return llvm::dyn_cast<llvm::Value>(call);
+    return llvm::cast<llvm::Value>(call);
   }
 
   inline static bool classof(const Factor* const factor) {

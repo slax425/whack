@@ -106,20 +106,13 @@ private:
     }
 
     for (size_t i = 0; i < args.size(); ++i) {
-      // @todo
-      if (i == 1 && args[i]->getName() == "::expansion") {
-        if (args.size() != 2) {
-          return error("expected only 2 arguments for partial function "
-                       "evaluation at line {} (got {})",
-                       state.row + 1, args.size());
+      if (args[i]->getName() == "::expansion") {
+        if (i != args.size() - 1) {
+          return error("cannot use an expansion as argument {} "
+                       "in call to function `{}` at line {}",
+                       i, value->getName().str(), state.row + 1);
         }
         break;
-      }
-      // @todo
-      if (args[i]->getName() == "::expansion") {
-        return error("cannot use an expansion as argument {} "
-                     "in call to function `{}` at line {}",
-                     i, value->getName().str(), state.row + 1);
       }
 
       // @todo Check if we need an operator overload?

@@ -25,40 +25,49 @@ namespace whack::ast {
 
 class TypeSwitch final : public Stmt {
 public:
-  explicit constexpr TypeSwitch(const mpc_ast_t* const ast) noexcept
-      : Stmt(kTypeSwitch), ast_{ast} {}
+  explicit TypeSwitch(const mpc_ast_t* const ast)
+      : Stmt(kTypeSwitch), state_{ast->state}, expr_{getExpressionValue(
+                                                   ast->children[3])} {
+    for (auto i = 6; i < ast->children_num - 1; i += 3) {
+      const auto ref = ast->children[i];
+      if (std::string_view(ref->contents) == "default") {
+        defaultStmt_ = getStmt(ast->children[i + 2]);
+      } else {
+        options_.emplace_back(
+            std::pair{TypeList{ref}, getStmt(ast->children[i + 2])});
+      }
+    }
+  }
 
   // this is "constexpr"
   llvm::Error codegen(llvm::IRBuilder<>& builder) const final {
-    small_vector<std::pair<TypeList, std::unique_ptr<Stmt>>> options;
-    std::unique_ptr<Stmt> defaultStmt;
-    for (auto i = 6; i < ast_->children_num - 1; i += 3) {
-      const auto ref = ast_->children[i];
-      if (std::string_view(ref->contents) == "default") {
-        defaultStmt = getStmt(ast_->children[i + 2]);
-      } else {
-        options.emplace_back(
-            std::pair{TypeList{ref}, getStmt(ast_->children[i + 2])});
-      }
-    }
-    auto e = getExpressionValue(ast_->children[3])->codegen(builder);
+    const auto func = builder.GetInsertBlock()->getParent();
+    const auto tempBlock =
+        llvm::BasicBlock::Create(func->getContext(), "", func);
+    llvm::IRBuilder<> tmp{tempBlock};
+    auto e = expr_->codegen(tmp);
+    tempBlock->eraseFromParent();
     if (!e) {
       return e.takeError();
     }
     const auto type = (*e)->getType();
     bool matched = false;
-    const auto module = builder.GetInsertBlock()->getModule();
-    for (const auto& [typeList, stmt] : options) {
+    const auto module = func->getParent();
+    for (const auto& [typeList, stmt] : options_) {
       if (matched) {
         break;
       }
-      const auto [types, variadic] = typeList.codegen(module);
+      auto types = typeList.codegen(module);
+      if (!types) {
+        return types.takeError();
+      }
+      const auto& [list, variadic] = *types;
       if (variadic) {
         return error("cannot use a variadic type in type switch "
                      "at line {}",
-                     ast_->state.row + 1);
+                     state_.row + 1);
       }
-      for (const auto t : types) {
+      for (const auto t : list) {
         if (type == t) {
           matched = true;
           if (auto err = stmt->codegen(builder)) {
@@ -71,11 +80,11 @@ public:
         }
       }
     }
-    if (!matched && defaultStmt) {
-      if (auto err = defaultStmt->codegen(builder)) {
+    if (!matched && defaultStmt_) {
+      if (auto err = defaultStmt_->codegen(builder)) {
         return err;
       }
-      return defaultStmt->runScopeExit(builder);
+      return defaultStmt_->runScopeExit(builder);
     }
     return llvm::Error::success();
   }
@@ -85,7 +94,10 @@ public:
   }
 
 private:
-  const mpc_ast_t* const ast_;
+  const mpc_state_t state_;
+  std::unique_ptr<Expression> expr_;
+  small_vector<std::pair<TypeList, std::unique_ptr<Stmt>>> options_;
+  std::unique_ptr<Stmt> defaultStmt_;
 };
 
 } // end namespace whack::ast
