@@ -55,7 +55,7 @@ public:
                    "enum values at line {}",
                    state_.row + 1);
     }
-    if (options_.size() > Type::getBitSize(module, type)) {
+    if (options_.size() > (2 ^ Type::getBitSize(module, type))) {
       return error("type provided for enum `{}` has insufficient "
                    "size to hold the enum values at line {}",
                    name_, state_.row + 1);
