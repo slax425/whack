@@ -98,6 +98,11 @@ private:
     }
 
     const auto funcType = llvm::cast<llvm::FunctionType>(type);
+    if (funcType->isVarArg()) {
+      // @todo
+      return llvm::Error::success();
+    }
+
     if (funcType->getNumParams() != args.size()) {
       return error("invalid number of arguments given for function `{}` "
                    "at line {} (expected {}, got {})",
