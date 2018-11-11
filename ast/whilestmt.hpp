@@ -32,30 +32,34 @@ public:
   llvm::Error codegen(llvm::IRBuilder<>& builder) const final {
     const auto func = builder.GetInsertBlock()->getParent();
     auto& ctx = builder.getContext();
-    block_ = llvm::BasicBlock::Create(ctx, "while", func);
+    const auto block = llvm::BasicBlock::Create(ctx, "while", func);
+    deferBlock_ = llvm::BasicBlock::Create(ctx, "deferBlock", func);
     const auto cont = llvm::BasicBlock::Create(ctx, "cont", func);
     auto cond = condition_.codegen(builder);
     if (!cond) {
       return cond.takeError();
     }
-    builder.CreateCondBr(*cond, block_, cont);
-    builder.SetInsertPoint(block_);
+    builder.CreateCondBr(*cond, block, deferBlock_);
+    builder.SetInsertPoint(block);
     if (auto err = stmt_->codegen(builder)) {
       return err;
     }
-    block_ = builder.GetInsertBlock();
     cond = condition_.codegen(builder);
     if (!cond) {
       return cond.takeError();
     }
-    builder.CreateCondBr(*cond, block_, cont);
+    builder.CreateCondBr(*cond, block, deferBlock_);
+    deferBlock_->moveAfter(builder.GetInsertBlock());
+    builder.SetInsertPoint(deferBlock_);
+    builder.CreateBr(cont);
+    cont->moveAfter(deferBlock_);
     builder.SetInsertPoint(cont);
     return llvm::Error::success();
   }
 
   inline llvm::Error runScopeExit(llvm::IRBuilder<>& builder) const final {
     llvm::IRBuilder<>::InsertPointGuard{builder};
-    builder.SetInsertPoint(block_);
+    builder.SetInsertPoint(deferBlock_);
     return stmt_->runScopeExit(builder);
   }
 
@@ -66,7 +70,7 @@ public:
 private:
   Condition condition_;
   std::unique_ptr<Stmt> stmt_;
-  mutable llvm::BasicBlock* block_;
+  mutable llvm::BasicBlock* deferBlock_;
 };
 
 } // end namespace whack::ast

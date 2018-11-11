@@ -94,7 +94,6 @@ public:
         return builder.CreateBitOrPointerCast(expr, typeTo);
       }
     }
-    typeTo->dump();
     return error("invalid cast at line {}", state_.row + 1);
   }
 

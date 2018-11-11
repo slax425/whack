@@ -56,7 +56,8 @@ public:
     const auto func = builder.GetInsertBlock()->getParent();
     auto& ctx = func->getContext();
     if (getInnermostAstTag(expr_) == "forinexpr") {
-      llvm_unreachable("forinexpr not implemented");
+      return error("forinexpr not implemented at line {}",
+                   expr_->state.row + 1);
     } else { // <forincrexpr>
       const auto body = llvm::BasicBlock::Create(ctx, "for", func);
       const auto cont = llvm::BasicBlock::Create(ctx, "cont", func);

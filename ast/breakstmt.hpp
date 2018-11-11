@@ -19,16 +19,21 @@
 #pragma once
 
 #include "ast.hpp"
+#include <llvm/IR/CFG.h>
 
 namespace whack::ast {
 
 class Break final : public Stmt {
 public:
-  explicit constexpr Break(const mpc_ast_t* const ast)
+  explicit constexpr Break(const mpc_ast_t* const ast) noexcept
       : Stmt(kBreak), state_{ast->state} {}
 
   llvm::Error codegen(llvm::IRBuilder<>& builder) const final {
-    // @todo
+    if (!handleBreak(builder, builder.GetInsertBlock())) {
+      return error("could not find a loop to break "
+                   "out of at line {}",
+                   state_.row + 1);
+    }
     return llvm::Error::success();
   }
 
@@ -38,6 +43,27 @@ public:
 
 private:
   const mpc_state_t state_;
+
+  static bool handleBreak(llvm::IRBuilder<>& builder,
+                          llvm::BasicBlock* const current) {
+    for (const auto pred : llvm::predecessors(current)) {
+      const auto name = pred->getName();
+      if (name.startswith("while") || name.startswith("for")) {
+        const auto cont = llvm::cast<llvm::BranchInst>(
+                              pred->getSinglePredecessor()->getTerminator())
+                              ->getSuccessor(1);
+        builder.CreateBr(cont);
+        return true;
+      } else {
+        if (!llvm::pred_empty(pred)) {
+          if (handleBreak(builder, pred)) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
 };
 
 } // end namespace whack::ast
