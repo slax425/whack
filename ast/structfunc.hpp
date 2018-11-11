@@ -133,7 +133,9 @@ public:
       } else { // "__dtor"
                // @todo
       }
-      llvm_unreachable("struct defaulted ctor/dtor not implemented");
+      return error("struct defaulted ctor/dtor not implemented "
+                   "at line {}",
+                   state_.row + 1);
     }
 
     if (func->back().empty() ||
