@@ -193,11 +193,6 @@ private:
     }
   }
 
-  llvm::Expected<std::string> resolveModulePath(llvm::StringRef moduleName) {
-    // @todo
-    return "";
-  }
-
   llvm::Expected<std::unique_ptr<llvm::Module>> codegen() {
     if (!ast_) {
       return error("Invalid AST");
@@ -211,15 +206,11 @@ private:
       std::visit(
           [&mod, &err](auto&& element) {
             if (auto e = element.codegen(mod)) {
-              if (err)
-              err = llvm::joinErrors(std::move(err), std::move(e));
-            else err = std::move(e);
+              err = err ? llvm::joinErrors(std::move(err), std::move(e))
+                        : std::move(e);
             }
           },
           elem);
-      // if (err) { // we fail early for now @todo
-      //   return err;
-      // }
     }
     if (err) {
       return err;
