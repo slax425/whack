@@ -25,7 +25,7 @@
 
 namespace whack::ast {
 
-const static structopname_t getStructOpName(const mpc_ast_t* const ast) {
+static structopname_t getStructOpName(const mpc_ast_t* const ast) {
   const auto ref = ast->children[1];
   if (getOutermostAstTag(ref) == "type") {
     return static_cast<structopname_t>(Type{ref});

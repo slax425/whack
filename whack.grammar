@@ -156,9 +156,11 @@ breakstmt : "break" ';' ;
 
 continuestmt : "continue" ';' ;
 
+unreachablestmt : "unreachable" ';' ;
+
 deferstmt : "defer" <stmt> ;
 
-stmt : <body> | <yieldstmt> | <returnstmt> | <coreturnstmt> | <deletestmt> |
+stmt : <body> | <yieldstmt> | <returnstmt> | <coreturnstmt> | <deletestmt> | <unreachablestmt> |
        <breakstmt> | <continuestmt> | <deferstmt> | <ifstmt> | <whilestmt> |
        <forstmt> | <select> | <alias> | <structure> | <enumeration> | <match> |
        <typeswitch> | <declassign> | <letexpr> | <assign> | <opeq> | <comment> |

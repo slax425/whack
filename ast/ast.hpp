@@ -149,6 +149,7 @@ public:
     kReturn,
     kCoReturn,
     kDelete,
+    kUnreachable,
     kBreak,
     kContinue,
     kDefer,

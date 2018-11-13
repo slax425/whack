@@ -45,6 +45,7 @@
 #include "send.hpp"
 #include "structure.hpp"
 #include "typeswitch.hpp"
+#include "unreachable.hpp"
 #include "whilestmt.hpp"
 #include "yieldstmt.hpp"
 
@@ -90,6 +91,7 @@ static std::unique_ptr<Stmt> getStmt(const mpc_ast_t* const ast) {
   OPT("outstream", OutStream)
   OPT("deferstmt", Defer)
   OPT("comment", CommentStmt)
+  OPT("unreachable", Unreachable)
 #undef OPT
   llvm_unreachable("invalid statement kind!");
 }

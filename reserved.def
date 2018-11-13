@@ -1,12 +1,1 @@
-inline constexpr static auto RESERVED = {
-    "true",     "false",     "using",    "match",   "default",    "type",
-    "await",    "async",     "func",     "new",     "sizeof",     "alignof",
-    "append",   "len",       "cast",     "let",     "mut",        "where",
-    "select",   "if",        "else",     "for",     "in",         "while",
-    "return",   "co_return", "delete",   "yield",   "break",      "continue",
-    "defer",    "chan",      "atomic",   "class",   "enum",       "struct",
-    "operator", "interface", "extern",   "export",  "use",        "as",
-    "module",   "OPTIONS",   "bool",     "int",     "uint",       "int64",
-    "short",    "uint64",    "char",     "int128",  "void",       "half",
-    "float",    "double",    "auto",     "nullptr", "this",       "main",
-    "__ctor",   "__dtor",    "noinline", "inline",  "mustinline", "noreturn"};
+inline constexpr static auto RESERVED = {"true", "false", "using", "match", "default", "type", "await", "async", "func", "new", "sizeof", "alignof", "append", "len", "cast", "let", "mut", "where", "select", "if", "else", "for", "in", "while", "return", "co_return", "delete", "yield", "break", "continue", "unreachable", "defer", "chan", "atomic", "class", "enum", "struct", "operator", "interface", "extern", "export", "use", "as", "module", "OPTIONS", "bool", "int", "uint", "int64", "short", "uint64", "char", "int128", "void", "half", "float", "double", "auto", "nullptr", "this", "main", "__ctor", "__dtor", "noinline", "inline", "mustinline", "noreturn"};
