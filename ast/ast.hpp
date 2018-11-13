@@ -22,9 +22,9 @@
 #include "../format.hpp"
 #include "../mpc/mpc.h"
 #include "../types.hpp"
-#include <iostream>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Support/Casting.h>
+#include <variant>
 
 namespace whack {
 template <typename T> using small_vector = llvm::SmallVector<T, 10>;
@@ -220,6 +220,15 @@ inline static /*const*/ llvm::StringMap<decltype(&LLVMBuildAnd)> OpsTable{
     {"^", &LLVMBuildXor},   {"%", &LLVMBuildFRem},   {"/", &LLVMBuildSDiv},
     {"/f", &LLVMBuildFDiv}, {"*", &LLVMBuildNSWMul}, {"*f", &LLVMBuildFMul},
     {">>", &LLVMBuildAShr}, {"<<", &LLVMBuildShl}};
+
+class Type;
+using structopname_t = std::variant<llvm::StringRef, Type>;
+
+static structopname_t getStructOpName(const mpc_ast_t* const);
+
+static llvm::Expected<std::string>
+getStructOpNameString(const llvm::Module* const, const structopname_t&,
+                      const mpc_state_t);
 
 } // end namespace ast
 } // end namespace whack

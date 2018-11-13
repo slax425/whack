@@ -31,16 +31,16 @@ using callable_t = std::variant<Closure, OverloadID, ScopeRes, variable_t>;
 const static callable_t getCallable(const mpc_ast_t* const ast) {
   const auto tag = getInnermostAstTag(ast);
   if (tag == "closure") {
-    return Closure{ast};
+    return static_cast<callable_t>(Closure{ast});
   }
   if (tag == "overloadid") {
-    return OverloadID{ast};
+    return static_cast<callable_t>(OverloadID{ast});
   }
   if (tag == "scoperes") {
-    return ScopeRes{ast};
+    return static_cast<callable_t>(ScopeRes{ast});
   }
   if (tag == "variable") {
-    return getVariable(ast);
+    return static_cast<callable_t>(getVariable(ast));
   }
   llvm_unreachable("unknown callable kind!");
 }

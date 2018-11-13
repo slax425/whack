@@ -47,9 +47,21 @@ public:
         return error("expected `{}` to be a struct type at line {}",
                      ast_->children[i - 2]->contents, ast_->state.row + 1);
       }
-      const auto structName = type->getStructName();
+
       const auto memberRef = ast_->children[i];
-      const auto& member = memberRef->contents;
+      std::string member;
+      if (getInnermostAstTag(memberRef) == "structopname") {
+        auto name = getStructOpNameString(&module, getStructOpName(memberRef),
+                                          ast_->state);
+        if (!name) {
+          return name.takeError();
+        }
+        member = std::move(*name);
+      } else {
+        member = memberRef->contents;
+      }
+
+      const auto structName = type->getStructName();
       if (const auto idx = getIndex(module, structName, member)) {
         extracted =
             builder.CreateStructGEP(type, extracted, idx.value(), member);

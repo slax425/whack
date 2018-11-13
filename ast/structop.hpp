@@ -25,11 +25,39 @@
 
 namespace whack::ast {
 
+const static structopname_t getStructOpName(const mpc_ast_t* const ast) {
+  const auto ref = ast->children[1];
+  if (getOutermostAstTag(ref) == "type") {
+    return static_cast<structopname_t>(Type{ref});
+  }
+  return static_cast<structopname_t>(llvm::StringRef{ref->contents});
+}
+
+static llvm::Expected<std::string>
+getStructOpNameString(const llvm::Module* const module,
+                      const structopname_t& funcName, const mpc_state_t state) {
+  if (funcName.index() == 0) {
+    return format("operator {}", std::get<llvm::StringRef>(funcName).data());
+  }
+  const auto& t = std::get<Type>(funcName);
+  auto tp = t.codegen(module);
+  if (!tp) {
+    return tp.takeError();
+  }
+  const auto type = *tp;
+  if (type == BasicTypes["auto"]) {
+    return error("struct function cannot define an "
+                 "operator for deduced type auto "
+                 "at line {}",
+                 state.row + 1);
+  }
+  return format("operator {}", getTypeName(type));
+}
+
 class StructOp final : public AST {
-  using func_name_t = std::variant<llvm::StringRef, Type>;
+public:
   using args_types_t = std::variant<Args, TypeList>;
 
-public:
   explicit StructOp(const mpc_ast_t* const ast) : state_{ast->state} {
     auto idx = 2;
     if (std::string_view(ast->children[idx]->contents) == "mut") {
@@ -39,15 +67,10 @@ public:
 
     structName_ = ast->children[idx++]->contents;
     ++idx;
-    auto ref = ast->children[idx]->children[1];
-    if (getOutermostAstTag(ref) == "type") {
-      funcName_ = std::make_unique<func_name_t>(Type{ref});
-    } else {
-      funcName_ = std::make_unique<func_name_t>(llvm::StringRef{ref->contents});
-    }
-
+    funcName_ =
+        std::make_unique<structopname_t>(getStructOpName(ast->children[idx]));
     ++idx;
-    ref = ast->children[++idx];
+    const auto ref = ast->children[++idx];
     auto tag = getOutermostAstTag(ref);
     if (tag == "args") {
       argsOrTypeList_ = std::make_unique<args_types_t>(Args{ref});
@@ -75,31 +98,16 @@ public:
                    structName_.data(), state_.row + 1);
     }
 
-    std::string name;
-    if (funcName_->index() == 0) {
-      name =
-          format("operator {}", std::get<llvm::StringRef>(*funcName_).data());
-    } else {
-      const auto& t = std::get<Type>(*funcName_);
-      auto tp = t.codegen(module);
-      if (!tp) {
-        return tp.takeError();
-      }
-      const auto type = *tp;
-      if (type == BasicTypes["auto"]) {
-        return error("function of struct `{}` cannot "
-                     "define an operator for deduced type auto "
-                     "at line {}",
-                     structName_.data(), state_.row + 1);
-      }
-      name = format("operator {}", getTypeName(type));
+    auto name = getStructOpNameString(module, *funcName_, state_);
+    if (!name) {
+      return name.takeError();
     }
 
-    const auto funcName = format("struct::{}::{}", structName_.data(), name);
+    const auto funcName = format("struct::{}::{}", structName_.data(), *name);
     if (module->getFunction(funcName)) {
       return error("function `{}` already exists for struct `{}` "
                    "at line {}",
-                   name, structName_.data(), state_.row + 1);
+                   *name, structName_.data(), state_.row + 1);
     }
 
     small_vector<llvm::Type*> paramTypes;
@@ -168,7 +176,7 @@ public:
       if (func->getReturnType() != BasicTypes["void"]) {
         return error("expected function `{}` for struct `{}` "
                      " to have a return value at line {}",
-                     name, structName_.data(), state_.row + 1);
+                     *name, structName_.data(), state_.row + 1);
       } else {
         builder.CreateRetVoid();
       }
@@ -193,7 +201,7 @@ public:
       if (*deduced != func->getReturnType()) {
         return error("function `{}` for struct `{}` returns an invalid type "
                      "at line {}",
-                     name, structName_.data(), state_.row + 1);
+                     *name, structName_.data(), state_.row + 1);
       }
     }
     return llvm::Error::success();
@@ -203,7 +211,7 @@ private:
   const mpc_state_t state_;
   bool mutatesMembers_{false};
   llvm::StringRef structName_;
-  std::unique_ptr<func_name_t> funcName_;
+  std::unique_ptr<structopname_t> funcName_;
   std::unique_ptr<args_types_t> argsOrTypeList_;
   std::unique_ptr<Type> returnType_;
   std::unique_ptr<Body> body_;

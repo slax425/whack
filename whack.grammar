@@ -86,7 +86,7 @@ expression : <addrof> | <ternary> | <boolexpr> | <lexp> ;
 
 exprlist : <expression> (',' <expression>)* ;
 
-structmember : <ident> ('.' <ident>)+ ;
+structmember : <ident> ('.' (<structopname> | <ident>))+ ;
 
 element : (<structmember> | <ident>) ('[' <expression> ']')+ ;
 
