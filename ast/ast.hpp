@@ -165,6 +165,7 @@ public:
     kLetExpr,
     kAssign,
     kOpEq,
+    kComment,
     kFuncCall,
     kSend,
     kReceive,

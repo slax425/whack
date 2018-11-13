@@ -22,6 +22,7 @@
 #include "assign.hpp"
 #include "body.hpp"
 #include "breakstmt.hpp"
+#include "comment.hpp"
 #include "continuestmt.hpp"
 #include "coreturnstmt.hpp"
 #include "declassign.hpp"
@@ -88,6 +89,7 @@ static std::unique_ptr<Stmt> getStmt(const mpc_ast_t* const ast) {
   OPT("instream", InStream)
   OPT("outstream", OutStream)
   OPT("deferstmt", Defer)
+  OPT("comment", CommentStmt)
 #undef OPT
   llvm_unreachable("invalid statement kind!");
 }

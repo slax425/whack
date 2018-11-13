@@ -161,9 +161,9 @@ deferstmt : "defer" <stmt> ;
 stmt : <body> | <yieldstmt> | <returnstmt> | <coreturnstmt> | <deletestmt> |
        <breakstmt> | <continuestmt> | <deferstmt> | <ifstmt> | <whilestmt> |
        <forstmt> | <select> | <alias> | <structure> | <enumeration> | <match> |
-       <typeswitch> | <declassign> | <letexpr> | <assign> | <opeq> |
+       <typeswitch> | <declassign> | <letexpr> | <assign> | <opeq> | <comment> |
        (<funccall> | <send> | <receive> | <newexpr> | <outstream> | <instream> | <preop> |
-        <postop>)';' ;
+        <postop>) ';' ;
 
 boolexpr    : '!'? '(' <boolexpr> ')'
             | <comparison> (("&&" | "||" (<comparison> | <lexp>))*
@@ -270,12 +270,19 @@ moduledecl  : "module" <ident> ;
 
 compileropt : "{-" "OPTIONS" <identlist> "-}" ;
 
-whack       : /^/ <compileropt>*
+comment     : "//" /[^'\n']+/ | /[\n]/ ;
+
+whack       : /^/ <comment>*
+                  <compileropt>*
+                  <comment>*
                   <moduledecl>
+                  <comment>*
                   <moduleuse>*
+                  <comment>*
                   <exports>*
                   (
-                      <externfunc>
+                      <comment>
+                    | <externfunc>
                     | <dataclass>
                     | <interface>
                     | <enumeration>

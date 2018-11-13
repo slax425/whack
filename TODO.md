@@ -9,7 +9,8 @@
 - [ ] Consistent Name Mangling (currently ad-hoc) -> support `export` construct
 - [ ] Distinguish pre/post increment/decrement operator functions (via mangled names?)
 - [ ] Refactor/Redo types/type lists
-- [ ] Comments
+- [x] Comments
+- [ ] Expand the reach of Comments
 - [ ] Support type construction from `type(<expression>)`
 - [ ] Make "this" optionally implicit in struct functions (if variable name search fails in struct functions, check if they belong to "this")
 - [ ] Template to generate syntax file for sublime text from grammar
