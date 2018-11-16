@@ -100,8 +100,8 @@ public:
                                      false);
     }
 
-    const auto func = llvm::Function::Create(
-        type, llvm::Function::ExternalLinkage, name, module);
+    auto func = llvm::Function::Create(type, llvm::Function::ExternalLinkage,
+                                       name, module);
     func->arg_begin()[0].setName("this");
     func->addParamAttr(0, llvm::Attribute::Nest);
     if (!mutatesMembers_) {
@@ -122,54 +122,21 @@ public:
 
     auto entry = llvm::BasicBlock::Create(func->getContext(), "entry", func);
     llvm::IRBuilder<> builder{entry};
-    if (body_) {
-      if (auto err = body_->codegen(builder)) {
-        return err;
-      }
-    } else {
+    if (!body_) {
       if (funcName_ == "__ctor") {
         // @todo Default the constructor (zero init the members?)
         // builder.CreateStore(llvm::Constant::getNullValue(), func->arg(0))
       } else { // "__dtor"
                // @todo
       }
-      return error("struct defaulted ctor/dtor not implemented "
+      return error("defaulted struct ctor/dtor not implemented "
                    "at line {}",
                    state_.row + 1);
     }
 
-    if (func->back().empty() ||
-        !llvm::isa<llvm::ReturnInst>(func->back().back())) {
-      if (func->getReturnType() != BasicTypes["void"]) {
-        return error("expected function `{}` for struct `{}` to "
-                     " have a return value at line {}",
-                     funcName_, structName_, state_.row + 1);
-      } else {
-        builder.CreateRetVoid();
-      }
-    }
-
-    if (body_) {
-      if (auto err = body_->runScopeExit(builder)) {
-        return err;
-      }
-
-      auto deduced = deduceFuncReturnType(func, state_);
-      if (!deduced) { // return better error msg
-        return deduced.takeError();
-      }
-
-      // we replace func's type if we used return type deduction
-      if (func->getReturnType() == BasicTypes["auto"]) {
-        (void)changeFuncReturnType(func, *deduced);
-        return llvm::Error::success();
-      }
-
-      if (*deduced != func->getReturnType()) {
-        return error("function `{}` for struct `{}` returns an invalid type "
-                     "at line {}",
-                     funcName_, structName_, state_.row + 1);
-      }
+    auto built = buildFunction(func, body_.get(), state_);
+    if (!built) {
+      return built.takeError();
     }
     return llvm::Error::success();
   }

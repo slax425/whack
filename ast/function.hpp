@@ -135,6 +135,57 @@ bindFirstFuncArgument(llvm::IRBuilder<>& builder, llvm::Function* const func,
   return llvm::cast<llvm::Function>(newFunc);
 }
 
+static llvm::Expected<llvm::Function*> buildFunction(llvm::Function* func,
+                                                     const Body* const body,
+                                                     const mpc_state_t state) {
+  const auto entry =
+      llvm::BasicBlock::Create(func->getContext(), "entry", func);
+  llvm::IRBuilder<> builder{entry};
+  if (auto err = body->codegen(builder)) {
+    return err;
+  }
+  if (auto err = body->runScopeExit(builder)) {
+    return err;
+  }
+
+  auto deduced = deduceFuncReturnType(func, state);
+  if (!deduced) {
+    return deduced.takeError();
+  }
+
+  const auto name = func->getName().data();
+  const auto noReturnValueErr = [name, state] {
+    return format("expected function `{}` to have a return "
+                  "value at line {}",
+                  name, state.row + 1);
+  };
+
+  // we replace func's type if we used return type deduction
+  if (func->getReturnType() == BasicTypes["auto"]) {
+    if (!*deduced) {
+      return error(noReturnValueErr());
+    }
+    func = changeFuncReturnType(func, *deduced);
+  } else if (const auto retTy = func->getReturnType();
+             retTy != BasicTypes["void"] && *deduced != retTy) {
+    return error("function `{}` returns an invalid type "
+                 "at line {}",
+                 name, state.row + 1);
+  }
+
+  if (func->back().empty() ||
+      !llvm::isa<llvm::ReturnInst>(func->back().back())) {
+    builder.SetInsertPoint(&func->back());
+    if (auto retTy = func->getReturnType(); retTy != BasicTypes["void"]) {
+      warning(noReturnValueErr());
+      builder.CreateRet(llvm::Constant::getNullValue(retTy));
+    } else {
+      builder.CreateRetVoid();
+    }
+  }
+  return func;
+}
+
 class Function final : public AST {
 public:
   explicit Function(const mpc_ast_t* const ast)
@@ -164,8 +215,8 @@ public:
     if (!type) {
       return type.takeError();
     }
-    const auto func = llvm::Function::Create(
-        *type, llvm::Function::ExternalLinkage, name_, module);
+    auto func = llvm::Function::Create(*type, llvm::Function::ExternalLinkage,
+                                       name_, module);
     if (args_) {
       const auto names = args_->names();
       for (size_t i = 0; i < names.size(); ++i) {
@@ -178,42 +229,9 @@ public:
       }
     }
 
-    auto entry = llvm::BasicBlock::Create(func->getContext(), "entry", func);
-    llvm::IRBuilder<> builder{entry};
-    if (auto err = body_->codegen(builder)) {
-      return err;
-    }
-
-    if (func->back().empty() ||
-        !llvm::isa<llvm::ReturnInst>(func->back().back())) {
-      if (func->getReturnType() != BasicTypes["void"]) {
-        return error("expected function `{}` to have a return "
-                     "value at line {}",
-                     name_, state_.row + 1);
-      } else {
-        builder.CreateRetVoid();
-      }
-    }
-
-    if (auto err = body_->runScopeExit(builder)) {
-      return err;
-    }
-
-    auto deduced = deduceFuncReturnType(func, state_);
-    if (!deduced) {
-      return deduced.takeError();
-    }
-
-    // we replace func's type if we used return type deduction
-    if (func->getReturnType() == BasicTypes["auto"]) {
-      (void)changeFuncReturnType(func, *deduced);
-      return llvm::Error::success();
-    }
-
-    if (*deduced != func->getReturnType()) {
-      return error("function `{}` returns an invalid type "
-                   "at line {}",
-                   name_, state_.row + 1);
+    auto built = buildFunction(func, body_.get(), state_);
+    if (!built) {
+      return built.takeError();
     }
     return llvm::Error::success();
   }

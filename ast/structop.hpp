@@ -157,9 +157,6 @@ public:
       }
     }
 
-    auto entry = llvm::BasicBlock::Create(func->getContext(), "entry", func);
-    llvm::IRBuilder<> builder{entry};
-
     if (!body_) {
       // @todo Default the operator; if applicable??
       return error("defaulted struct operators not implemented "
@@ -167,42 +164,9 @@ public:
                    state_.row + 1);
     }
 
-    if (auto err = body_->codegen(builder)) {
-      return err;
-    }
-
-    if (func->back().empty() ||
-        !llvm::isa<llvm::ReturnInst>(func->back().back())) {
-      if (func->getReturnType() != BasicTypes["void"]) {
-        return error("expected function `{}` for struct `{}` "
-                     " to have a return value at line {}",
-                     *name, structName_.data(), state_.row + 1);
-      } else {
-        builder.CreateRetVoid();
-      }
-    }
-
-    if (body_) {
-      if (auto err = body_->runScopeExit(builder)) {
-        return err;
-      }
-
-      auto deduced = deduceFuncReturnType(func, state_);
-      if (!deduced) { // return better error msg
-        return deduced.takeError();
-      }
-
-      // we replace func's type if we used return type deduction
-      if (func->getReturnType() == BasicTypes["auto"]) {
-        (void)changeFuncReturnType(func, *deduced);
-        return llvm::Error::success();
-      }
-
-      if (*deduced != func->getReturnType()) {
-        return error("function `{}` for struct `{}` returns an invalid type "
-                     "at line {}",
-                     *name, structName_.data(), state_.row + 1);
-      }
+    auto built = buildFunction(func, body_.get(), state_);
+    if (!built) {
+      return built.takeError();
     }
     return llvm::Error::success();
   }

@@ -212,43 +212,11 @@ public:
       Structure::addMetadata(module, env->getName(), scopedNames);
     }
 
-    const auto entry =
-        llvm::BasicBlock::Create(func->getContext(), "entry", func);
-    llvm::IRBuilder<> tmpBuilder{entry};
-    if (auto err = body_->codegen(tmpBuilder)) {
-      return err;
+    auto built = buildFunction(func, body_.get(), state_);
+    if (!built) {
+      return built.takeError();
     }
-
-    if (func->back().empty() ||
-        !llvm::isa<llvm::ReturnInst>(func->back().back())) {
-      if (func->getReturnType() != BasicTypes["void"]) {
-        return error("expected closure to have a return "
-                     "value at line {}",
-                     state_.row + 1);
-      } else {
-        tmpBuilder.CreateRetVoid();
-      }
-    }
-
-    if (auto err = body_->runScopeExit(tmpBuilder)) {
-      return err;
-    }
-
-    auto deduced = deduceFuncReturnType(func, state_);
-    if (!deduced) {
-      return deduced.takeError();
-    }
-
-    // we replace func's type if we used return type deduction
-    if (func->getReturnType() == BasicTypes["auto"]) {
-      func = changeFuncReturnType(func, *deduced);
-    } else { // we check return type for errors
-      if (*deduced != func->getReturnType()) {
-        return error("closure returns an invalid type "
-                     "at line {}",
-                     state_.row + 1);
-      }
-    }
+    func = *built;
 
     if (hasEnv) {
       const auto env = argTypes.front()->getPointerElementType();
@@ -258,7 +226,7 @@ public:
         builder.CreateStore(scopedValues[i], ptr);
       }
       const auto closureType = llvm::FunctionType::get(
-          *deduced, func->getFunctionType()->params().drop_front(),
+          func->getReturnType(), func->getFunctionType()->params().drop_front(),
           func->isVarArg());
       return bindFirstFuncArgument(builder, func, scopeVars, closureType);
     }

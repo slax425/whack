@@ -215,6 +215,10 @@ static llvm::Function* bindFirstFuncArgument(llvm::IRBuilder<>&,
                                              llvm::Value* const,
                                              llvm::FunctionType* const);
 
+class Body;
+static llvm::Expected<llvm::Function*>
+buildFunction(llvm::Function*, const Body* const, const mpc_state_t);
+
 inline static /*const*/ llvm::StringMap<decltype(&LLVMBuildAnd)> OpsTable{
     {"&", &LLVMBuildAnd},   {"|", &LLVMBuildOr},     {"+", &LLVMBuildNSWAdd},
     {"+f", &LLVMBuildFAdd}, {"-", &LLVMBuildNSWSub}, {"-f", &LLVMBuildFSub},
