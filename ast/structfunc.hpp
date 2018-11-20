@@ -120,9 +120,9 @@ public:
       }
     }
 
-    auto entry = llvm::BasicBlock::Create(func->getContext(), "entry", func);
-    llvm::IRBuilder<> builder{entry};
     if (!body_) {
+      auto entry = llvm::BasicBlock::Create(func->getContext(), "entry", func);
+      llvm::IRBuilder<> builder{entry};
       if (funcName_ == "__ctor") {
         // @todo Default the constructor (zero init the members?)
         // builder.CreateStore(llvm::Constant::getNullValue(), func->arg(0))
